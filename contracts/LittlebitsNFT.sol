@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
  *
  * @title LittlebitsNFT in-development contract 
  * @author gifMaker - contact@littlebits.club
- * @notice v0.8 / 2022
+ * @notice v0.81 / 2022
  *
  * --== NOT FOR RELEASE ==--
  */
@@ -31,6 +31,15 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable, L
     // airdrop log history
     address[] public airdropReceiversLog;
     
+    // authorized mint addresses (for stores custom sales purposes)
+    mapping(address => bool) public authorizedMintAddresses;
+
+    // log history of every authorized mint address
+    address[] public authorizedMintAddressesLog;
+
+    // log of mint number by authorized addresses
+    mapping(address => uint) public authorizedMintQuantityLog;
+    
     // attributes dictionary address
     LbAttributeDisplay private _attrDisplay;
 
@@ -45,12 +54,6 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable, L
     
     // next mint id
     uint private _mintId;
-
-    // authorized mint addresses (for stores/factory pattern purposes)
-    mapping(address => bool) private authorizedMintAddresses;
-
-    // log history of every authorized mint address
-    address[] private authorizedMintAddressesLog;
 
     // optional field, to be set if needed
     string private _contractMetadataUrl = "";
@@ -137,6 +140,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable, L
         for (uint i = 0; i < quantity; i++) {
             _mintToken(destination);
         }
+        authorizedMintQuantityLog[msg.sender] += quantity;
     }
 
     // try to assign any unresolved tokens to available Characters
