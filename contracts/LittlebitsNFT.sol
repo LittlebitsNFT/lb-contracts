@@ -132,8 +132,8 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable, L
     }
 
     // for stores custom sales, must be registered by ADMIN_setMintAddressAuth
-    function delegatedMint(address requester, uint quantity, address destination) public {
-        require(authorizedMintAddresses[requester]);
+    function delegatedMint(uint quantity, address destination) public {
+        require(authorizedMintAddresses[msg.sender]);
         for (uint i = 0; i < quantity; i++) {
             _mintToken(destination);
         }
