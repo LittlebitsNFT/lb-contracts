@@ -1,0 +1,9 @@
+dotenv: .env
+wallets:
+  pkey_lbresolver: ${PKEY_LBRESOLVER}
+dependencies:
+  - OpenZeppelin/openzeppelin-contracts@4.5.0
+compiler:
+  solc:
+    remappings:
+      - '@openzeppelin/contracts=OpenZeppelin/openzeppelin-contracts@4.5.0/contracts'
