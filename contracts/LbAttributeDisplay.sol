@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
  *
  * @title LbAttributeDisplay in-development contract 
  * @author gifMaker - contact@littlebits.club
- * @notice v0.8 / 2022
+ * @notice v0.81 / 2022
  * @dev Retrieves Character attributes in a human readable format
  *
  * --== NOT FOR RELEASE ==--
@@ -22,8 +22,6 @@ contract LbAttributeDisplay is Ownable {
 
     string private constant BASE_IMG_URI = "ipfs://SET_CID/";
 
-    uint private constant ATTR_COUNT = 15;
-
     // AttrIds
     // 0 rarity; 1 gender; 2 costume; 3 hat; 4 hair; 5 glasses; 6 eyes; 7 nose;
     // 8 beard; 9 bowtie; 10 jacket; 11 torso; 12 legs; 13 shoes; 14 skin;
@@ -37,7 +35,7 @@ contract LbAttributeDisplay is Ownable {
     uint[ATTR_COUNT] private _femaleAttrvaluesCountRequirement = [6, 2, 21, 33, 49, 19, 6, 4, 1, 1, 19, 65, 25, 25, 7];
 
     function ADMIN_setupAttributes(uint genderId, uint attrId, string[] memory displayValues) public onlyOwner {
-        require(genderId <= 1, "invalid genderId");
+        require(genderId < 2, "invalid genderId");
         require(attrId < ATTR_COUNT, "invalid attrId");
         _displayValues[genderId][attrId] = displayValues;
     }
