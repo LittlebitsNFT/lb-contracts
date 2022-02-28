@@ -137,6 +137,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     // for stores custom sales, must be registered by ADMIN_setMintAddressAuth
     function delegatedMint(uint quantity, address destination) public {
         require(authorizedMintAddresses[msg.sender]);
+        require(_mintId < MAX_SUPPLY, "Max supply reached");
         for (uint i = 0; i < quantity; i++) {
             _mintToken(destination);
         }
@@ -207,7 +208,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     ////////////////  PRIVATE FUNCTIONS  ////////////////
     function _mintToken(address to) private {
-        require(_mintId < (MAX_SUPPLY - AIRDROP_SUPPLY + airdropReceiversLog.length), "Max supply reached.");
+        require(_mintId < (MAX_SUPPLY - AIRDROP_SUPPLY + airdropReceiversLog.length), "Max supply reached");
         _mint(to, _mintId);
         _unresolvedTokens.push(UnresolvedToken(_mintId, block.number));
         _mintId++;
