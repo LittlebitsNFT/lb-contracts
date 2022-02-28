@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.12;
 
 /**
  * --== NOT FOR RELEASE ==--
@@ -28,13 +28,13 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     // failsafe functions lock
     bool public failsafesActive = true;
 
-    // airdrop log history
+    // airdrop history
     address[] public airdropReceiversLog;
     
     // authorized mint addresses (for stores custom sales purposes)
     mapping(address => bool) public authorizedMintAddresses;
 
-    // log history of every authorized mint address
+    // history of every authorized mint address
     address[] public authorizedMintAddressesLog;
 
     // log of mint number by authorized addresses
