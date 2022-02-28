@@ -20,7 +20,7 @@ import "./LbAttributeDisplay.sol";
 import "./LbCharacter.sol";
 
 /// @custom:security-contact contact@littlebits.club
-contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable, LbCharacter {
+contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     uint private constant MAX_SUPPLY = 10000;
     uint private constant AIRDROP_SUPPLY = 1000;
     uint private constant MINT_PRICE = 3000 ether;

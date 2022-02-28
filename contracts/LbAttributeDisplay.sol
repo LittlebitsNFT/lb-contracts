@@ -17,7 +17,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "./Base64.sol";
 import "./LbCharacter.sol";
 
-contract LbAttributeDisplay is Ownable, LbCharacter {
+contract LbAttributeDisplay is Ownable {
     bool public contractLocked = false;
 
     string private constant BASE_IMG_URI = "ipfs://SET_CID/";

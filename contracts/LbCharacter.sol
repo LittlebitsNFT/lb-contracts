@@ -11,12 +11,11 @@ pragma solidity ^0.8.0;
  *
  * --== NOT FOR RELEASE ==--
  */
-contract LbCharacter {
-    // AttributeId AttributeKey;
-    // 0 gender; 1 rarity; 2 costume; 3 hat; 4 hair; 5 glasses; 6 eyes; 7 nose;
-    // 8 beard; 9 bowtie; 10 jacket; 11 torso; 12 legs; 13 shoes; 14 skin;
-    struct Character {
-        uint8[15] attributes;
-        string imageId;
-    }
+
+// AttributeId AttributeKey;
+// 0 rarity; 1 gender; 2 costume; 3 hat; 4 hair; 5 glasses; 6 eyes; 7 nose;
+// 8 beard; 9 bowtie; 10 jacket; 11 torso; 12 legs; 13 shoes; 14 skin;
+struct Character {
+    uint8[15] attributes;
+    string imageId;
 }
