@@ -6,7 +6,7 @@ pragma solidity ^0.8.12;
  *
  * @title LittlebitsNFT in-development contract 
  * @author gifMaker - contact@littlebits.club
- * @notice v0.81 / 2022
+ * @notice v0.82 / 2022
  *
  * --== NOT FOR RELEASE ==--
  */
@@ -76,7 +76,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
         uint resolvedCharacters = totalSupply() - getUnresolvedTokensLength();
         require(
             resolvedCharacters + getUnresolvedCharactersLength() + newCharacters.length
-            <= MAX_SUPPLY, "more characters than max supply."
+            <= MAX_SUPPLY, "More characters than max supply"
         );
 
         for (uint i = 0; i < newCharacters.length; i++) {
@@ -113,12 +113,12 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     }
 
     function ADMIN_failsafeUpdateURI(uint tokenId, string memory newTokenURI) public onlyOwner {
-        require(failsafesActive);
+        require(failsafesActive, "Failsafe permanently disabled");
         _setTokenURI(tokenId, newTokenURI);
     }
 
     function ADMIN_failsafeUpdateCharacter(uint tokenId, Character memory character) public onlyOwner {
-        require(failsafesActive);
+        require(failsafesActive, "Failsafe permanently disabled");
         _characters[tokenId] = character;
     }
 
@@ -145,8 +145,8 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     // try to assign any unresolved tokens to available Characters
     function resolveTokens(uint maxResolves) public {
-        require(_unresolvedTokens.length > 0, "No tokens to be resolved.");
-        if (maxResolves == 0) maxResolves = 1;
+        require(_unresolvedTokens.length > 0, "No tokens to be resolved");
+        require(maxResolves > 0, "Invalid parameter");
         uint i = 0;
         while (i < _unresolvedTokens.length) {
             bytes32 tokenBlockHash = blockhash(_unresolvedTokens[i].refBlock);
