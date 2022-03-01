@@ -61,6 +61,9 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     // used for EIP2981, can be adjusted
     uint private _royaltyInBips = 500; 
 
+    // mint unlock
+    bool private _mintUnlocked;
+
     // minted token with no assigned Character
     struct UnresolvedToken {
         uint tokenId;
@@ -110,6 +113,10 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     function ADMIN_setRoyaltiesInBips(uint royaltyInBips) public onlyOwner {
         require(royaltyInBips <= 10000);
         _royaltyInBips = royaltyInBips;
+    }
+
+    function ADMIN_setMintUnlocked(bool state) public onlyOwner {
+        _mintUnlocked = state;
     }
 
     function ADMIN_failsafeUpdateURI(uint tokenId, string memory newTokenURI) public onlyOwner {
@@ -209,6 +216,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     ////////////////  PRIVATE FUNCTIONS  ////////////////
     function _mintToken(address to) private {
         require(_mintId < (MAX_SUPPLY - AIRDROP_SUPPLY + airdropReceiversLog.length), "Max supply reached");
+        require(_mintUnlocked, "Minting not unlocked");
         _mint(to, _mintId);
         _unresolvedTokens.push(UnresolvedToken(_mintId, block.number));
         _mintId++;
