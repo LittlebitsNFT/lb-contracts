@@ -2,14 +2,10 @@
 pragma solidity ^0.8.12;
 
 /**
- * --== NOT FOR RELEASE ==--
- *
- * @title LbAttributeDisplay in-development contract 
+ * @title LbAttributeDisplay contract 
  * @author gifMaker - contact@littlebits.club
- * @notice v0.81 / 2022
+ * @notice v1.00 / 2022
  * @dev Retrieves Character attributes in a human readable format
- *
- * --== NOT FOR RELEASE ==--
  */
 
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -20,7 +16,7 @@ import "./LbCharacter.sol";
 contract LbAttributeDisplay is Ownable {
     bool public contractLocked = false;
 
-    string private constant BASE_IMG_URI = "ipfs://SET_CID/";
+    string private constant BASE_IMG_URI = "ipfs://QmWHhBbYbs1po3EivgG4N8eFK2eU8pEZDJzLX8Bm7pQ9pj/";
 
     // AttrIds
     // 0 rarity; 1 gender; 2 costume; 3 hat; 4 hair; 5 glasses; 6 eyes; 7 nose;

@@ -2,13 +2,9 @@
 pragma solidity ^0.8.12;
 
 /**
- * --== NOT FOR RELEASE ==--
- *
- * @title LittlebitsNFT in-development contract 
+ * @title LittlebitsNFT contract 
  * @author gifMaker - contact@littlebits.club
- * @notice v0.83 / 2022
- *
- * --== NOT FOR RELEASE ==--
+ * @notice v1.00 / 2022
  */
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -143,7 +139,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     // for stores custom sales, must be registered by ADMIN_setMintAddressAuth
     function delegatedMint(uint quantity, address destination) public {
-        require(authorizedMintAddresses[msg.sender]);
+        require(authorizedMintAddresses[msg.sender], "Not authorized");
         require(_mintId < MAX_SUPPLY, "Max supply reached");
         for (uint i = 0; i < quantity; i++) {
             _mintToken(destination);
