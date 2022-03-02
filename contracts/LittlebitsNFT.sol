@@ -6,7 +6,7 @@ pragma solidity ^0.8.12;
  *
  * @title LittlebitsNFT in-development contract 
  * @author gifMaker - contact@littlebits.club
- * @notice v0.82 / 2022
+ * @notice v0.83 / 2022
  *
  * --== NOT FOR RELEASE ==--
  */
