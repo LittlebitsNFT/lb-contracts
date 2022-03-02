@@ -34,12 +34,6 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     // authorized mint addresses (for stores custom sales purposes)
     mapping(address => bool) public authorizedMintAddresses;
 
-    // history of every authorized mint address
-    address[] public authorizedMintAddressesLog;
-
-    // log of mint number by authorized addresses
-    mapping(address => uint) public authorizedMintQuantityLog;
-    
     // attributes dictionary address
     LbAttributeDisplay private _attrDisplay;
 
@@ -63,6 +57,12 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     // mint unlock
     bool private _mintUnlocked;
+
+    // Log of authorized mint addresses mints
+    event AuthorizedMintLog(address indexed _address);
+
+    // Log of authorized mint addresses changes
+    event AuthorizedMintAddressStateChange(address indexed _address, bool indexed state);
 
     // minted token with no assigned Character
     struct UnresolvedToken {
@@ -96,9 +96,9 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     }
 
     function ADMIN_setMintAddressAuth(address addr, bool state) public onlyOwner {
-        authorizedMintAddresses[addr] = state;
-        if (state == true){
-            authorizedMintAddressesLog.push(addr);
+        if (state != authorizedMintAddresses[addr]){
+            authorizedMintAddresses[addr] = state;
+            emit AuthorizedMintAddressStateChange(addr, state);
         }
     }
 
@@ -129,7 +129,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
         _characters[tokenId] = character;
     }
 
-    function ADMIN_disableFailsafes(uint tokenId, Character memory character) public onlyOwner {
+    function ADMIN_disableFailsafesPermanently() public onlyOwner {
         failsafesActive = false;
     }
 
@@ -147,8 +147,8 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
         require(_mintId < MAX_SUPPLY, "Max supply reached");
         for (uint i = 0; i < quantity; i++) {
             _mintToken(destination);
+            emit AuthorizedMintLog(msg.sender);
         }
-        authorizedMintQuantityLog[msg.sender] += quantity;
     }
 
     // try to assign any unresolved tokens to available Characters
