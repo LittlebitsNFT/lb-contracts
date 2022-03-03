@@ -30,7 +30,7 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     // authorized mint addresses (for stores custom sales purposes)
     mapping(address => bool) public authorizedMintAddresses;
 
-    // attributes dictionary address
+    // attributes display address
     LbAttributeDisplay private _attrDisplay;
 
     // mapping from token id to Character
@@ -173,6 +173,11 @@ contract LittlebitsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
             }
             if (--maxResolves == 0) break;
         }
+    }
+
+    // get character from tokenId
+    function getCharacter(uint tokenId) public view returns (Character memory) {
+        return _characters[tokenId];
     }
 
     // get characters from address
