@@ -1,7 +1,7 @@
 dotenv: .env
 wallets:
   pkey_lb_official: ${PKEY_LB_OFFICIAL}
-  pkey_lb_resolver: ${PKEY_LB_RESOLVER}
+  pkey_lb_test: ${PKEY_LB_TEST}
 dependencies:
   - OpenZeppelin/openzeppelin-contracts@4.5.0
 compiler:
