@@ -11,13 +11,21 @@ pragma solidity ^0.8.12;
 import "./LittlebitsNFT.sol";
 import "./LbCharacter.sol";
 import "./LittlebucksTKN.sol";
+import "./LbAccess.sol";
+import "./LbOpenClose.sol";
+
+struct WorldPlacedInfo {
+    uint tokenId; // todo: add uint collectionId for multiple collections?
+    uint block;
+    int[2] coords;
+    bool flipped;
+    uint[] flairs;
+}
 
 // access requirements:
 // must be TRANSFERER on LittlebucksTKN
 
-contract LbWorld is LbAccess {
-    // allows this contract to be shutdown and relaunched (ex: in case of upgrades or if admin control is compromised)
-    bool public pausedForever = false;
+contract LbWorld is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
     uint public constant FLAIRGIVER_ROLE = 1;
@@ -25,109 +33,109 @@ contract LbWorld is LbAccess {
     uint public constant PRICESETTER_ROLE = 3;
 
     // default lb placement price
-    uint public lbucksPlacementPrice = 1 * 100;
+    uint public placementPrice = 1 * 100;
     
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
     LittlebucksTKN private _littlebucksTKN;
 
     // events
-    event NewLbPlaced(uint indexed lbId, int[2] coords, bool flipped, uint[] flairs);
-    event NewFlairAcquired(uint indexed lbId, uint indexed flair);
+    event TokenPlaced(uint indexed tokenId, int[2] coords, bool flipped, uint[] flairs);
+    event FlairAcquired(uint indexed tokenId, uint indexed flair);
 
-    struct LbPlaced {
-        uint block;
-        int[2] coords;
-        bool flipped;
-        uint[] flairs;
-    }
-
-    // mapping from lb_id to (flairId to owned)
-    mapping(uint => mapping(uint => bool)) public flairsOwned;
+    // mapping from tokenId to (flairId to owned)
+    mapping(uint => mapping(uint => bool)) public isFlairOwned;
     
-    // mapping from lb_id to [every flair acquired by this lb] (for public view / ui listing)
-    mapping(uint => uint[]) public flairsAcquired;
+    // mapping from tokenId to [every flair acquired by this token] (for public view / ui listing)
+    mapping(uint => uint[]) private flairsAcquired;
     
-    // mapping from lbId to last placed info
-    mapping(uint => LbPlaced) public lastPlaced;
+    // mapping from tokenId to last placed info
+    mapping(uint => WorldPlacedInfo) private lastPlaced;
 
     constructor(address littlebitsNFTAddr, address littlebucksTKNAddr) {
         // access control config
-        ACCESS_WAIT_BLOCKS = 20; // tmp testing, default: 200_000
+        ACCESS_WAIT_BLOCKS = 0; // tmp testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
         hasRole[msg.sender][ADMIN_ROLE] = true;
-        
-        // tmp test
-        // hasRole[msg.sender][FLAIRGIVER_ROLE] = true;     // TODO:  remove this, only registered contracts should mint
-        // hasRole[msg.sender][LBPLACER_ROLE] = true;       // TODO:  remove this, only registered contracts should tranfer
         
         // other contracts refs
         _littlebitsNFT = LittlebitsNFT(littlebitsNFTAddr);
         _littlebucksTKN = LittlebucksTKN(littlebucksTKNAddr);
     }
 
+    // to be tested
+    // TODO: CHANGE TO getFlairsOwned
+    function getFlairsAcquired(uint tokenId, uint startInd, uint fetchMax) public view returns (uint[] memory) {
+        uint fetchTotal = flairsAcquired[tokenId].length - startInd;
+        fetchTotal = fetchTotal < fetchMax ? fetchTotal : fetchMax;
+        uint[] memory returnFlairs = new uint[](fetchTotal);
+        uint fetchTo = startInd + fetchTotal;
+        for (uint i = startInd; i < fetchTo; i++) {
+            returnFlairs[i - startInd] = flairsAcquired[tokenId][i];
+        }
+        return returnFlairs;
+    }
+
+    // TODO: CHANGE TO getFlairsOwnedSize
+    function getFlairsAcquiredSize(uint tokenId) public view returns (uint) {
+        return flairsAcquired[tokenId].length;
+    }
+
+    function getLastPlacedInfo(uint tokenId) public view returns (WorldPlacedInfo memory) {
+        return lastPlaced[tokenId];
+    }
+
     // place lb in the world
-    function placeLb(uint lbId, int[2] memory coords, bool flipped, uint[] memory flairs) public {
-        require(!pausedForever, 'Contract locked');
+    function placeLb(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs) public {
+        require(isOpen, 'Contract closed');
         // check ownership
         // require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner"); // TMP: ownership requirement disabled
         // check flairs owned
         for (uint i = 0; i < flairs.length; i++) {
             uint flairId = flairs[i];
-            bool owned = flairsOwned[lbId][flairId];
-            require(owned, 'Flair not owned');
+            require(isFlairOwned[tokenId][flairId], 'Flair not owned');
         }
         // pay lbucks
-        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), lbucksPlacementPrice);
+        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), placementPrice);
         // update lastPlaced state
-        lastPlaced[lbId] = LbPlaced(block.number, coords, flipped, flairs);
+        lastPlaced[tokenId] = WorldPlacedInfo(tokenId, block.number, coords, flipped, flairs);
         // event
-        emit NewLbPlaced(lbId, coords, flipped, flairs);
+        emit TokenPlaced(tokenId, coords, flipped, flairs);
     }
 
     // authorized contracts can put lbs in the world with custom effects (safeFlairs)
     // doesnt check lbId ownership
     // doesnt check safeFlairs ownership
     // doesnt charge anything
-    function LBPLACER_placeLb(uint lbId, int[2] memory coords, bool flipped, uint[] memory flairs, uint[] memory safeFlairs) public {
+    function LBPLACER_placeLb(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs, uint[] memory safeFlairs) public {
         require(hasRole[msg.sender][LBPLACER_ROLE], 'LBPLACER access required');
-        require(!pausedForever, 'Contract locked');
+        require(isOpen, 'Contract closed');
         // check flairs owned
         for (uint i = 0; i < flairs.length; i++) {
             uint flairId = flairs[i];
-            bool owned = flairsOwned[lbId][flairId];
-            require(owned, 'Flair not owned');
+            require(isFlairOwned[tokenId][flairId], 'Flair not owned');
         }
         // merge owned and custom flairs
         uint[] memory allFlairs = new uint[](flairs.length + safeFlairs.length);
         // update lastPlaced state
-        lastPlaced[lbId] = LbPlaced(block.number, coords, flipped, allFlairs);
+        lastPlaced[tokenId] = WorldPlacedInfo(tokenId, block.number, coords, flipped, allFlairs);
         // event
-        emit NewLbPlaced(lbId, coords, flipped, allFlairs);
-    }
-
-    // contract lock
-    function ADMIN_pauseForever() public {
-        require(hasRole[msg.sender][ADMIN_ROLE], 'ADMIN access required');
-        pausedForever = true;
+        emit TokenPlaced(tokenId, coords, flipped, allFlairs);
     }
 
     // changes default lbplacing price
-    function PRICESETTER_setPlacementPrice(uint lbucksInWei) public {
+    function PRICESETTER_setPlacementPrice(uint weiPrice) public {
         require(hasRole[msg.sender][ADMIN_ROLE], 'PRICESETTER access required');
-        lbucksPlacementPrice = lbucksInWei;
+        placementPrice = weiPrice;
     }
 
     function FLAIRGIVER_giveFlair(uint lbId, uint flairId) public {
         require(hasRole[msg.sender][FLAIRGIVER_ROLE], 'FLAIRGIVER access required');
-        require(!pausedForever, 'Contract locked');
-        bool flairOwned = flairsOwned[lbId][flairId];
-        if (!flairOwned) {
-            flairsOwned[lbId][flairId] = true;
+        require(isOpen, 'Contract closed');
+        if (!isFlairOwned[lbId][flairId]) {
+            isFlairOwned[lbId][flairId] = true;
             flairsAcquired[lbId].push(flairId);
-            emit NewFlairAcquired(lbId, flairId);
+            emit FlairAcquired(lbId, flairId);
         }
     }
 }
-// TODO: MAKE A NOT-FOREVER PAUSE
-// TODO: VER COMO LITTLEBABIES + OUTRAS NFTS INFLUENCIARIAM NO SISTEMA

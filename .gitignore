@@ -8,3 +8,4 @@ interfaces/
 scripts/
 tests/
 README.MD
+contracts/_*

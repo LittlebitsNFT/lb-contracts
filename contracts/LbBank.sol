@@ -9,15 +9,13 @@ pragma solidity ^0.8.12;
  */
 
 import "./LittlebucksTKN.sol";
+import "./LbAccess.sol";
+import "./LbOpenClose.sol";
 
 // access requirements:
 // must be TRANSFERER and MINTER on LittlebucksTKN
 
-contract LbBank is LbAccess {
-    // allow start work
-    bool public isOpen = true; // todo: start false
-    bool public pausedForever = false;
-
+contract LbBank is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
 
@@ -48,16 +46,6 @@ contract LbBank is LbAccess {
         
         // other contracts
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
-    }
-
-    function ADMIN_openBank() public {
-        require(hasRole[msg.sender][ADMIN_ROLE], 'ADMIN access required');
-        isOpen = true;
-    }
-
-    function ADMIN_closeBank() public {
-        require(hasRole[msg.sender][ADMIN_ROLE], 'ADMIN access required');
-        isOpen = false;
     }
 
     // ADMIN force acc withdraw

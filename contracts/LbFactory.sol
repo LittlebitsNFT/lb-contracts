@@ -11,16 +11,21 @@ pragma solidity ^0.8.12;
 import "./LittlebitsNFT.sol";
 import "./LittlebucksTKN.sol";
 import "./LbCharacter.sol";
-import "./LbWorker.sol";
+import "./LbAccess.sol";
+import "./LbOpenClose.sol";
 
 // access requirements:
 // must be MINTER on LittlebucksTKN
 
-contract LbFactory is LbAccess {
-    // allow start work
-    bool public isOpen = true; // todo: start false
-    bool public pausedForever = false;
+// worker status
+struct Worker {
+    uint tokenId;
+    bool working;
+    uint refBlock;
+    uint lifetimeWorkedHours;
+}
 
+contract LbFactory is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
     
@@ -33,7 +38,7 @@ contract LbFactory is LbAccess {
     // base payment per hour
     uint private _hourPayment = 100;
 
-    // base blocks per hour
+    // blocks per hour
     uint private _blocksPerHour = 1200 / 60; // todo: change to 1200 (1h, now it's 1 minute)
     
     // other contracts
@@ -41,7 +46,7 @@ contract LbFactory is LbAccess {
     LittlebucksTKN private _littlebucksTKN;
     
     // rarity bonuses in bips        0%  10%   25%   50%   100%   300%
-    uint[6] private _rarityBonuses = [0, 1000, 2500, 5000, 10000, 30000];
+    uint[6] private _rarityBonuses = [0, 1000, 2500, 5000, 10000, 30000]; // todo make this public, and getraritybonus private (you get the rarity bonus using the rarityId)
 
 	// mapping from token id to Worker
     mapping(uint => Worker) private _workers;
@@ -66,19 +71,8 @@ contract LbFactory is LbAccess {
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
     }
 
-    function ADMIN_openFactory() public {
-        require(hasRole[msg.sender][ADMIN_ROLE], 'ADMIN access required');
-        isOpen = true;
-    }
-
-    function ADMIN_closeFactory() public {
-        require(hasRole[msg.sender][ADMIN_ROLE], 'ADMIN access required');
-        isOpen = false;
-    }
-
     // MANAGER_fireWorker
     // MANAGER_fireWorker
-
 
     function getWorker(uint tokenId) public view returns (Worker memory worker) {
         worker = _workers[tokenId];
@@ -114,19 +108,19 @@ contract LbFactory is LbAccess {
         emit WithdrawPayment(tokenId, totalPayment);
     }
 
-    function getTotalPaymentInfo(uint tokenId) public view returns (uint hoursWorked, uint totalPayment, uint remainderBlocks) {
-        uint basePayment;
-        (hoursWorked, basePayment, remainderBlocks) = getBasePaymentInfo(tokenId);
+    function getTotalPaymentInfo(uint tokenId) public view returns (uint totalPayment, uint hoursWorked, uint remainderBlocks) {
+        (hoursWorked, remainderBlocks) = _calculateHoursWorked(tokenId);
+        uint basePayment = _hourPayment * hoursWorked;
         uint rarityBonusInBips = getRarityBonusInBips(tokenId);
         totalPayment = (basePayment * (10000 + rarityBonusInBips)) / 10000;
     }
 
-    // returns pending base payment, hours worked and remainder blocks (<_blocksPerHour)
-    function getBasePaymentInfo(uint tokenId) public view returns (uint hoursWorked, uint basePayment, uint remainderBlocks) {
-        require(_workers[tokenId].working, "Not currently working");
+    // returns hours worked and remainder blocks.
+    function _calculateHoursWorked(uint tokenId) private view returns (uint hoursWorked, uint remainderBlocks) {
+        bool isWorking = _workers[tokenId].working;
+        require(isWorking, "Not currently working");
         uint blocksWorked = block.number - _workers[tokenId].refBlock;
         hoursWorked = blocksWorked / _blocksPerHour;
-        basePayment = _hourPayment * hoursWorked;
         remainderBlocks = blocksWorked % _blocksPerHour;
     }
 
@@ -134,9 +128,7 @@ contract LbFactory is LbAccess {
         uint rarity = _littlebitsNFT.getCharacter(tokenId).attributes[0];
         rarityBonus = _rarityBonuses[rarity];
     }
-
 }
-
 
     // implement batch ops in v2 (maybe another contract)
 
