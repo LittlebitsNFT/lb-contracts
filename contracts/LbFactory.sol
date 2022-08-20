@@ -19,7 +19,6 @@ import "./LbOpenClose.sol";
 
 // worker status
 struct Worker {
-    uint tokenId;
     bool working;
     uint refBlock;
     uint lifetimeWorkedHours;
@@ -32,14 +31,17 @@ contract LbFactory is LbAccess, LbOpenClose {
     // number of current workers
     uint public totalWorkers;
 
-    // number of current workers
+    // lbucks mint tracking
     uint public totalLbucksMinted;
+
+    // mapping from account to total earnings
+    mapping(address => uint) public accountTotalEarnings;
 
     // base payment per hour
     uint private _hourPayment = 100;
 
     // blocks per hour
-    uint private _blocksPerHour = 1200 / 60; // todo: change to 1200 (1h, now it's 1 minute)
+    uint private _blocksPerHour = 1200;
     
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
@@ -48,7 +50,7 @@ contract LbFactory is LbAccess, LbOpenClose {
     // rarity bonuses in bips        0%  10%   25%   50%   100%   300%
     uint[6] private _rarityBonuses = [0, 1000, 2500, 5000, 10000, 30000]; // todo make this public, and getraritybonus private (you get the rarity bonus using the rarityId)
 
-	// mapping from token id to Worker
+	// mapping from tokenId to Worker
     mapping(uint => Worker) private _workers;
 
     modifier onlyTokenOwner(uint tokenId) {
@@ -62,7 +64,7 @@ contract LbFactory is LbAccess, LbOpenClose {
 
     constructor(address littlebitsNFT, address littlebucksTKN) {
         // access control config
-        ACCESS_WAIT_BLOCKS = 20; // todo: testing, default: 200_000
+        ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
         hasRole[msg.sender][ADMIN_ROLE] = true;
         
@@ -72,16 +74,23 @@ contract LbFactory is LbAccess, LbOpenClose {
     }
 
     // MANAGER_fireWorker
-    // MANAGER_fireWorker
 
     function getWorker(uint tokenId) public view returns (Worker memory worker) {
         worker = _workers[tokenId];
     }
 
+    // ui helper
+    function getWorkers(uint[] memory tokenIds) public view returns (Worker[] memory worker) {
+        Worker[] memory workers = new Worker[](tokenIds.length);
+        for (uint i = 0; i < tokenIds.length; i++) {
+            workers[i] = _workers[tokenIds[i]];
+        }
+        return workers;
+    }
+
     function startWork(uint tokenId) public onlyTokenOwner(tokenId) {
-        require(!_workers[tokenId].working, "Already working here");
+        require(!_workers[tokenId].working, "Already working");
         require(isOpen, "Building is closed");
-        _workers[tokenId].tokenId = tokenId;
         _workers[tokenId].working = true;
         _workers[tokenId].refBlock = block.number;
         totalWorkers += 1;
@@ -89,7 +98,7 @@ contract LbFactory is LbAccess, LbOpenClose {
 	}
     
 	function stopWork(uint tokenId) public onlyTokenOwner(tokenId) {
-        require(_workers[tokenId].working, "Not working here");
+        require(_workers[tokenId].working, "Not currently working");
         // withdraw payment
         withdrawPayment(tokenId);
         // remove worker
@@ -99,26 +108,33 @@ contract LbFactory is LbAccess, LbOpenClose {
 	}
 
     // withdraw payment
-    function withdrawPayment(uint tokenId) public onlyTokenOwner(tokenId) { // todo: change to token owner or manager_role
+    function withdrawPayment(uint tokenId) public onlyTokenOwner(tokenId) {
+        require(_workers[tokenId].working, "Not currently working");
+        // calculate final payment
         (uint totalPayment, uint hoursWorked, uint remainderBlocks) = getTotalPaymentInfo(tokenId);
+        // save token data
         _workers[tokenId].refBlock = block.number - remainderBlocks;
         _workers[tokenId].lifetimeWorkedHours += hoursWorked;
+        // save contract data
         totalLbucksMinted += totalPayment;
+        // save acc data
+        accountTotalEarnings[msg.sender] += totalPayment;
+        // pay
         _littlebucksTKN.MINTER_mint(_littlebitsNFT.ownerOf(tokenId), totalPayment);
         emit WithdrawPayment(tokenId, totalPayment);
     }
 
     function getTotalPaymentInfo(uint tokenId) public view returns (uint totalPayment, uint hoursWorked, uint remainderBlocks) {
+        bool isWorking = _workers[tokenId].working;
+        require(isWorking, "Not currently working");
         (hoursWorked, remainderBlocks) = _calculateHoursWorked(tokenId);
         uint basePayment = _hourPayment * hoursWorked;
         uint rarityBonusInBips = getRarityBonusInBips(tokenId);
-        totalPayment = (basePayment * (10000 + rarityBonusInBips)) / 10000;
+        totalPayment = (basePayment * (10000 + rarityBonusInBips)) / 10000; // basePayment + basePayment * rarityBonusBips / 10000
     }
 
     // returns hours worked and remainder blocks.
     function _calculateHoursWorked(uint tokenId) private view returns (uint hoursWorked, uint remainderBlocks) {
-        bool isWorking = _workers[tokenId].working;
-        require(isWorking, "Not currently working");
         uint blocksWorked = block.number - _workers[tokenId].refBlock;
         hoursWorked = blocksWorked / _blocksPerHour;
         remainderBlocks = blocksWorked % _blocksPerHour;
@@ -128,59 +144,25 @@ contract LbFactory is LbAccess, LbOpenClose {
         uint rarity = _littlebitsNFT.getCharacter(tokenId).attributes[0];
         rarityBonus = _rarityBonuses[rarity];
     }
+
+    function startWorkBatch(uint[] memory tokenIds) public {
+        for (uint i = 0; i < tokenIds.length; i++) {
+            uint tokenId = tokenIds[i];
+            startWork(tokenId);
+        }
+	}
+
+    function stopWorkBatch(uint[] memory tokenIds) public {
+        for (uint i = 0; i < tokenIds.length; i++) {
+            uint tokenId = tokenIds[i];
+            stopWork(tokenId);
+        }
+	}
+
+    function withdrawPaymentBatch(uint[] memory tokenIds) public {
+        for (uint i = 0; i < tokenIds.length; i++) {
+            uint tokenId = tokenIds[i];
+            withdrawPayment(tokenId);
+        }
+	}
 }
-
-    // implement batch ops in v2 (maybe another contract)
-
-    // function startWork(uint[] memory tokenIds) public {
-    //     for (uint256 index = 0; index < tokenIds.length; index++) {
-    //         uint tokenId = tokenIds[index];
-    //         startWork(tokenId);
-    //     }
-	// }
-
-    // blocker status: when true prevent starting work
-    // string[] private _blockersStatus;
-
-    // multiplier status: when true multiplies wage
-    // equal types stack additively, different types stack multiplicatively
-    // up to 8 multiplier types
-    // string[][8] private _multipliersStatus; 
-
-    // mapping from multiplier status to multiply factor
-    // in bips: 20% -> 2000
-    // mapping(string => uint) private _multipliersValues;
-    
-    //200 * 2000 / 10000 = 40
-
-    // add or remove a status to be checked as blocker
-    // function SetupBlockerStatus(string statusName, bool addingStatus) onlyOwner {
-    //     if (addingStatus) {
-    //         _blockersStatus.push(statusName);
-    //         return;
-    //     }
-    //     for (uint index = 0; index < _blockersStatus.length; index++) {
-    //         if (_blockersStatus[index] == statusName) {
-    //             _blockersStatus[index] = _blockersStatus[_blockersStatus.length - 1];
-    //             _blockersStatus.pop();
-    //             return;
-    //         }
-    //     }
-    // }
-
-    // add or remove a status to be checked as multiplier
-    // function SetupMultiplierStatus(string statusName, uint statusType, uint percentValueInBips, bool addingStatus) onlyOwner {
-    //     if (addingStatus) {
-    //         _multipliersStatus[statusType].push(statusName);
-    //         _multipliersValues[statusName] = percentValueInBips;
-    //         return;
-    //     }
-    //     for (uint index = 0; index < _multipliersStatus[statusType].length; index++) {
-    //         if (_multipliersStatus[statusType][index] == statusName) {
-    //             _multipliersStatus[statusType][index] = _multipliersStatus[statusType][_multipliersStatus[statusType].length - 1];
-    //             _multipliersStatus[statusType].pop();
-    //             _multipliersValues[statusName] = 0;
-    //             return;
-    //         }
-    //     }
-    // }

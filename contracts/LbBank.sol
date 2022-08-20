@@ -23,13 +23,19 @@ contract LbBank is LbAccess, LbOpenClose {
     uint private _weekBips = 100; // 1%
 
     // base blocks per week
-    uint private _blocksPerWeek = 201_600 / 7 / 24; // todo: change to 201_600 (1w, now it's 1 hour)
+    uint private constant _blocksPerWeek = 201_600 / 7 / 24; // todo: change to 201_600 (1w, now it's 1 hour)
     
     // total deposited
     uint public totalDeposited;
 
+    // lbucks mint tracking
+    uint public totalLbucksMinted;
+
     // mapping from wallet to deposited amount
     mapping(address => uint) public deposited;
+
+    // mapping from wallet to refBlock
+    mapping(address => uint) public refBlock;
 
     // other contracts
     LittlebucksTKN private _littlebucksTKN;
@@ -40,7 +46,7 @@ contract LbBank is LbAccess, LbOpenClose {
 
     constructor(address littlebucksTKN) {
         // access control config
-        ACCESS_WAIT_BLOCKS = 20; // todo: testing, default: 200_000
+        ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
         hasRole[msg.sender][ADMIN_ROLE] = true;
         
@@ -48,22 +54,46 @@ contract LbBank is LbAccess, LbOpenClose {
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
     }
 
-    // ADMIN force acc withdraw
+    // ADMIN force withdraw
     // ADMIN withdraw mtv
     
     function deposit(uint amount) public {
         require(deposited[msg.sender] == 0, 'Must withdraw first');
         _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), amount);
         deposited[msg.sender] = amount;
+        refBlock[msg.sender] = block.number;
+        totalDeposited += amount;
         emit Deposit(msg.sender, amount);
     }
 
     function withdraw() public {
-        uint withdrawAmount = deposited[msg.sender];
-        require(withdrawAmount != 0, 'Must deposit first');
-        _littlebucksTKN.TRANSFERER_transfer(address(this), msg.sender, withdrawAmount);
+        uint depositedAmount = deposited[msg.sender];
+        require(depositedAmount > 0, 'Not currently invested');
+        // initial deposited transfer
+        _littlebucksTKN.TRANSFERER_transfer(address(this), msg.sender, depositedAmount);
         deposited[msg.sender] = 0;
+        totalDeposited -= depositedAmount;
+        // interest mint
+        (uint weeksInvested,) = _calculateWeeksInvested(msg.sender);
+        uint interest = depositedAmount * weeksInvested * _weekBips / 10000;
+        _littlebucksTKN.MINTER_mint(msg.sender, interest);
+        totalLbucksMinted += interest;
+        // emit with total
+        uint withdrawAmount = depositedAmount + interest;
         emit Withdraw(msg.sender, withdrawAmount);
+    }
+
+    // returns hours worked and remainder blocks.
+    function _calculateWeeksInvested(address account) private view returns (uint weeksInvested, uint remainderBlocks) {
+        uint blocksInvested = block.number - refBlock[account];
+        weeksInvested = blocksInvested / _blocksPerWeek;
+        remainderBlocks = blocksInvested % _blocksPerWeek;
+    }
+
+    // ui
+    function getInvestedInfo(address account) public view returns (uint amount, uint _refBlock) {
+        amount = deposited[account];
+        _refBlock = refBlock[account];
     }
 
 
