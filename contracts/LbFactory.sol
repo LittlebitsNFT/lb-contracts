@@ -10,24 +10,30 @@ pragma solidity ^0.8.12;
 
 import "./LittlebitsNFT.sol";
 import "./LittlebucksTKN.sol";
+import "./LbSkills.sol";
 import "./LbCharacter.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
 // access requirements:
 // must be MINTER on LittlebucksTKN
+// must be SKILLCHANGER on LbSkills
 
 // worker status
 struct Worker {
     bool working;
     uint refBlock;
     uint lifetimeWorkedHours;
+    uint totalPaid;
 }
 
 contract LbFactory is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
     
+    // skillId
+    uint public constant WORKING_SKILL_ID = 1;
+
     // number of current workers
     uint public totalWorkers;
 
@@ -46,6 +52,7 @@ contract LbFactory is LbAccess, LbOpenClose {
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
     LittlebucksTKN private _littlebucksTKN;
+    LbSkills private _lbSkills;
     
     // rarity bonuses in bips        0%  10%   25%   50%   100%   300%
     uint[6] private _rarityBonuses = [0, 1000, 2500, 5000, 10000, 30000]; // todo make this public, and getraritybonus private (you get the rarity bonus using the rarityId)
@@ -62,7 +69,7 @@ contract LbFactory is LbAccess, LbOpenClose {
     event WorkStop(uint indexed lbId);
     event WithdrawPayment(uint indexed lbId, uint amount);
 
-    constructor(address littlebitsNFT, address littlebucksTKN) {
+    constructor(address littlebitsNFT, address littlebucksTKN, address lbSkills) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
@@ -71,6 +78,7 @@ contract LbFactory is LbAccess, LbOpenClose {
         // other contracts
         _littlebitsNFT = LittlebitsNFT(littlebitsNFT);
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
+        _lbSkills = LbSkills(lbSkills);
     }
 
     // MANAGER_fireWorker
@@ -115,10 +123,13 @@ contract LbFactory is LbAccess, LbOpenClose {
         // save token data
         _workers[tokenId].refBlock = block.number - remainderBlocks;
         _workers[tokenId].lifetimeWorkedHours += hoursWorked;
+        _workers[tokenId].totalPaid += totalPayment;
         // save contract data
         totalLbucksMinted += totalPayment;
         // save acc data
         accountTotalEarnings[msg.sender] += totalPayment;
+        // skill up
+        _lbSkills.SKILLCHANGER_changeSkill(tokenId, WORKING_SKILL_ID, hoursWorked * 100);
         // pay
         _littlebucksTKN.MINTER_mint(_littlebitsNFT.ownerOf(tokenId), totalPayment);
         emit WithdrawPayment(tokenId, totalPayment);
@@ -130,7 +141,8 @@ contract LbFactory is LbAccess, LbOpenClose {
         (hoursWorked, remainderBlocks) = _calculateHoursWorked(tokenId);
         uint basePayment = _hourPayment * hoursWorked;
         uint rarityBonusInBips = getRarityBonusInBips(tokenId);
-        totalPayment = (basePayment * (10000 + rarityBonusInBips)) / 10000; // basePayment + basePayment * rarityBonusBips / 10000
+        uint skillBonusInBips = getSkillBonusInBips(tokenId);
+        totalPayment = (basePayment * (10000 + rarityBonusInBips + skillBonusInBips)) / 10000; // basePayment + basePayment * bonuses / 10000
     }
 
     // returns hours worked and remainder blocks.
@@ -144,6 +156,31 @@ contract LbFactory is LbAccess, LbOpenClose {
         uint rarity = _littlebitsNFT.getCharacter(tokenId).attributes[0];
         rarityBonus = _rarityBonuses[rarity];
     }
+
+    function getSkillBonusInBips(uint tokenId) public view returns (uint skillBonus) {
+        uint skill = _lbSkills.getTokenSkill(tokenId, WORKING_SKILL_ID);
+        if (skill >= 10000) {   // 100
+            return 10000;       // 100%
+        }
+        if (skill >= 9000) {    // 90
+            return 6000;        // 60%
+        }
+        if (skill >= 7000) {    // 70
+            return 4000;        // 40%
+        }
+        if (skill >= 5000) {    // 50
+            return 3000;        // 30%
+        }
+        if (skill >= 3000) {    // 30
+            return 2000;        // 20%
+        }
+        if (skill >= 1000) {    // 10
+            return 1000;        // 10%
+        }
+    }
+
+    // function getLuckBonusInBips(uint tokenId) public view returns (uint luckBonus) {
+    // }
 
     function startWorkBatch(uint[] memory tokenIds) public {
         for (uint i = 0; i < tokenIds.length; i++) {

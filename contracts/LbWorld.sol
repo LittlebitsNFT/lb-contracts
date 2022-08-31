@@ -15,7 +15,6 @@ import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
 struct WorldPlacedInfo {
-    uint tokenId; // todo: add uint collectionId for multiple collections?
     uint block;
     int[2] coords;
     bool flipped;
@@ -52,6 +51,13 @@ contract LbWorld is LbAccess, LbOpenClose {
     // mapping from tokenId to last placed info
     mapping(uint => WorldPlacedInfo) private lastPlaced;
 
+    // mapping from tokenId to past total time placed
+    // only updated on a new placement -- the very last time placed is not accounted
+    // current total time placed = pastTotalBlocksPlaced + last time placed
+    mapping(uint => uint) private pastTotalBlocksPlaced;
+
+    uint private maxPlacementBlocksConsidered = 24 * 60 * 60 / 3; // (24h) maximum blocks considered to be registered on pastTotalBlocksPlaced
+
     constructor(address littlebitsNFTAddr, address littlebucksTKNAddr) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // tmp testing, default: 200_000
@@ -64,8 +70,7 @@ contract LbWorld is LbAccess, LbOpenClose {
     }
 
     // to be tested
-    // TODO: CHANGE TO getFlairsOwned
-    function getFlairsAcquired(uint tokenId, uint startInd, uint fetchMax) public view returns (uint[] memory) {
+    function getFlairsOwned(uint tokenId, uint startInd, uint fetchMax) public view returns (uint[] memory) {
         uint fetchTotal = flairsAcquired[tokenId].length - startInd;
         fetchTotal = fetchTotal < fetchMax ? fetchTotal : fetchMax;
         uint[] memory returnFlairs = new uint[](fetchTotal);
@@ -76,8 +81,7 @@ contract LbWorld is LbAccess, LbOpenClose {
         return returnFlairs;
     }
 
-    // TODO: CHANGE TO getFlairsOwnedSize
-    function getFlairsAcquiredSize(uint tokenId) public view returns (uint) {
+    function getFlairsOwnedSize(uint tokenId) public view returns (uint) {
         return flairsAcquired[tokenId].length;
     }
 
@@ -89,7 +93,7 @@ contract LbWorld is LbAccess, LbOpenClose {
     function placeLb(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs) public {
         require(isOpen, 'Contract closed');
         // check ownership
-        // require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner"); // TMP: ownership requirement disabled
+        require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner");
         // check flairs owned
         for (uint i = 0; i < flairs.length; i++) {
             uint flairId = flairs[i];
@@ -97,10 +101,27 @@ contract LbWorld is LbAccess, LbOpenClose {
         }
         // pay lbucks
         _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), placementPrice);
+        // update past total blocks placed
+        uint lastPlacedBlock = lastPlaced[tokenId].block;
+        if (lastPlacedBlock != 0) {
+            uint blocksPlaced = block.number - lastPlacedBlock;
+            blocksPlaced = blocksPlaced > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : blocksPlaced;
+            pastTotalBlocksPlaced[tokenId] += blocksPlaced;
+        }
         // update lastPlaced state
-        lastPlaced[tokenId] = WorldPlacedInfo(tokenId, block.number, coords, flipped, flairs);
+        lastPlaced[tokenId] = WorldPlacedInfo(block.number, coords, flipped, flairs);
         // event
         emit TokenPlaced(tokenId, coords, flipped, flairs);
+    }
+
+    function getTotalBlocksPlaced(uint tokenId) public view returns (uint) {
+        uint lastPlacedRefBlock = lastPlaced[tokenId].block;
+        uint lastPlacedBlocks = 0;
+        if (lastPlacedRefBlock != 0) {
+            lastPlacedBlocks = block.number - lastPlacedRefBlock;
+            lastPlacedBlocks = lastPlacedBlocks > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : lastPlacedBlocks;
+        }
+        return lastPlacedBlocks + pastTotalBlocksPlaced[tokenId];
     }
 
     // authorized contracts can put lbs in the world with custom effects (safeFlairs)
@@ -117,8 +138,15 @@ contract LbWorld is LbAccess, LbOpenClose {
         }
         // merge owned and custom flairs
         uint[] memory allFlairs = new uint[](flairs.length + safeFlairs.length);
+        // update past total blocks placed
+        uint lastPlacedBlock = lastPlaced[tokenId].block;
+        if (lastPlacedBlock != 0) {
+            uint blocksPlaced = block.number - lastPlacedBlock;
+            blocksPlaced = blocksPlaced > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : blocksPlaced;
+            pastTotalBlocksPlaced[tokenId] += blocksPlaced;
+        }
         // update lastPlaced state
-        lastPlaced[tokenId] = WorldPlacedInfo(tokenId, block.number, coords, flipped, allFlairs);
+        lastPlaced[tokenId] = WorldPlacedInfo(block.number, coords, flipped, allFlairs);
         // event
         emit TokenPlaced(tokenId, coords, flipped, allFlairs);
     }
@@ -138,4 +166,6 @@ contract LbWorld is LbAccess, LbOpenClose {
             emit FlairAcquired(lbId, flairId);
         }
     }
+
+    // todo: ADD FLAIRGIVER_removeFlair function?
 }

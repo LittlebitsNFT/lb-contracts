@@ -10,12 +10,17 @@ pragma solidity ^0.8.12;
 
 import "./LittlebitsNFT.sol";
 import "./LbCharacter.sol";
+import "./LbFactory.sol";
 
 contract LbInfo {
     LittlebitsNFT private _littlebitsNFT;
+    LbFactory private _lbFactory;
+    LbSkills private _lbSkills;
 
-    constructor(address _littlebitsNFTAddress){
+    constructor(address _littlebitsNFTAddress, address _lbFactoryAddress, address _lbSkillsAddress){
         _littlebitsNFT = LittlebitsNFT(_littlebitsNFTAddress);
+        _lbFactory = LbFactory(_lbFactoryAddress);
+        _lbSkills = LbSkills(_lbSkillsAddress);
     }
 
     function getTokensByOwner(address owner) public view returns (uint[] memory) {
@@ -25,6 +30,16 @@ contract LbInfo {
             tokens[index] = _littlebitsNFT.tokenOfOwnerByIndex(owner, index);
         }
         return tokens;
+    }
+
+    function getFactoryWorkersAndSkills(uint[] memory tokenIds) public view returns (Worker[] memory workers, uint[] memory skills) {
+        workers = _lbFactory.getWorkers(tokenIds);
+        uint queryLength = tokenIds.length;
+        uint[] memory skillIds = new uint[](queryLength);
+        for (uint i = 0; i < queryLength; i++) {
+            skillIds[i] = 1; // working skill id
+        }
+        skills = _lbSkills.getTokenSkillBatch(tokenIds, skillIds);
     }
 
     // only needed if trying to retrieve 1k+ lbits from a single owner

@@ -13,16 +13,20 @@ import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
 //  Register/change BadgeId => BadgeValidator as needed
-//  Different badges can have the same validator
-
+//  Different badges can have the same validator (using badgeId to decide)
 interface BadgeValidator {
     function checkBadgeRequirements(uint tokenId, uint badgeId, uint[] memory optionalData) external view returns (bool);
+}
+
+interface BadgeRewarder {
+    function rewardBadgeUnlock(uint tokenId, uint badgeId, address owner) external;
 }
 
 contract LbBadges is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
-    uint public constant BADGE_REGISTERER_ROLE = 1; // can set/modify badges callbacks
+    uint public constant BADGE_REGISTERER_ROLE = 1; // set / modify badge validators (callbacks)
+    uint public constant BADGE_REMOVER_ROLE = 2; // removes badges
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
@@ -36,6 +40,11 @@ contract LbBadges is LbAccess, LbOpenClose {
     // badgeId to badge checker function
     mapping(uint => BadgeValidator) private _badgeCheckerCallback;
 
+    mapping(uint => BadgeRewarder) private _badgeRewarderCallback;
+
+    event BadgeRegistered(uint indexed badgeId, address indexed validatorAddress);
+    event BadgeUnlocked(uint indexed tokenId, uint indexed badgeId);
+
     constructor(address littlebitsNFT) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
@@ -46,33 +55,64 @@ contract LbBadges is LbAccess, LbOpenClose {
         _littlebitsNFT = LittlebitsNFT(littlebitsNFT);
     }
 
-    function BADGE_REGISTERER_register_validator(uint badgeId, address badgeValidator) public {
+    function BADGE_REGISTERER_registerValidator(uint badgeId, address validatorAddress) public {
+        require(hasRole[msg.sender][BADGE_REGISTERER_ROLE], 'BADGE_REGISTERER access required');
         require(isOpen, "Building is closed");
-        _badgeCheckerCallback[badgeId] = BadgeValidator(badgeValidator);
+        _badgeCheckerCallback[badgeId] = BadgeValidator(validatorAddress);
+        emit BadgeRegistered(badgeId, validatorAddress);
+    }
+
+    // Will do a full search if startInd is zero. You can specify where it is on the owned list
+    function BADGE_REMOVER_removeBadge(uint tokenId, uint badgeId, uint startInd) public {
+        require(hasRole[msg.sender][BADGE_REMOVER_ROLE], 'BADGE_REMOVER access required');
+        require(isOpen, "Building is closed");
+        require(_isBadgeOwned[tokenId][badgeId], 'Badge not owned');
+        _isBadgeOwned[tokenId][badgeId] = false;
+        // remove from badgesOwned list.
+        uint badgesOwnedLength = _badgesOwned[tokenId].length;
+        for (uint i = startInd; i < badgesOwnedLength; i++) {
+            if (_badgesOwned[tokenId][i] == badgeId) {
+                _badgesOwned[tokenId][i] = _badgesOwned[tokenId][badgesOwnedLength - 1];
+                _badgesOwned[tokenId].pop();
+                break;
+            }
+        }
     }
 
     function unlockBadge(uint tokenId, uint badgeId, uint[] memory optionalData) public {
         require(isOpen, "Building is closed");
+        address lbOwner = _littlebitsNFT.ownerOf(tokenId);
         require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner");
         require(!_isBadgeOwned[tokenId][badgeId], 'Badge already owned');
         bool reqsMet = _badgeCheckerCallback[badgeId].checkBadgeRequirements(tokenId, badgeId, optionalData);
         require(reqsMet, 'Badge requirements not met');
         _isBadgeOwned[tokenId][badgeId] = true;
         _badgesOwned[tokenId].push(badgeId);
+        if(address(_badgeRewarderCallback[badgeId]) != address(0)) {
+            _badgeRewarderCallback[badgeId].rewardBadgeUnlock(tokenId, badgeId, lbOwner);
+        }
+        emit BadgeUnlocked(tokenId, badgeId);
     }
 
-    function checkBadgesReqs(uint tokenId, uint[] memory badgeIds, uint[] memory optionalData) public view returns (bool[] memory) {
+    // check if badge requirements are met
+    function checkBadgesReqs(uint tokenId, uint[] memory badgeIds, uint[][] memory optionalDatas) public view returns (bool[] memory) {
         uint badgesSize = badgeIds.length;
+        require(badgesSize == optionalDatas.length, 'BadgeIds and optionalDatas length differs');
         bool[] memory reqsMetArray = new bool[](badgesSize);
         for (uint i = 0; i < badgesSize; i++) {
             uint badgeId = badgeIds[i];
-            bool reqsMet = _badgeCheckerCallback[badgeId].checkBadgeRequirements(tokenId, badgeId, optionalData);
+            uint[] memory optionalData = optionalDatas[i];
+            BadgeValidator validator = _badgeCheckerCallback[badgeId];
+            bool reqsMet = false;
+            if(address(validator) != address(0)) {  // Validator exists
+                reqsMet = validator.checkBadgeRequirements(tokenId, badgeId, optionalData);
+            }
             reqsMetArray[i] = reqsMet;
         }
         return reqsMetArray;
     }
 
-    // all badges owned by a single token
+    // all badgeIds owned by a single token
     function getBadgesOwned(uint tokenId, uint startInd, uint fetchMax) public view returns (uint[] memory) {
         uint fetchTotal = _badgesOwned[tokenId].length - startInd;
         fetchTotal = fetchTotal < fetchMax ? fetchTotal : fetchMax;
@@ -82,6 +122,10 @@ contract LbBadges is LbAccess, LbOpenClose {
             returnBadges[i - startInd] = _badgesOwned[tokenId][i];
         }
         return returnBadges;
+    }
+
+    function getBadgesOwnedFull(uint tokenId) public view returns (uint[] memory) {
+        return _badgesOwned[tokenId];
     }
 
     // amount of badges owned by a single token

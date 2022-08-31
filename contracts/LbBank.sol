@@ -23,7 +23,7 @@ contract LbBank is LbAccess, LbOpenClose {
     uint private _weekBips = 100; // 1%
 
     // base blocks per week
-    uint private constant _blocksPerWeek = 201_600 / 7 / 24; // todo: change to 201_600 (1w, now it's 1 hour)
+    uint private constant _blocksPerWeek = 201_600; // 1 week
     
     // total deposited
     uint public totalDeposited;
