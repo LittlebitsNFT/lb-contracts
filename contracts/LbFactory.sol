@@ -30,9 +30,13 @@ struct Worker {
 contract LbFactory is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
+    uint public constant MANAGER_ROLE = 1;
     
     // skillId
     uint public constant WORKING_SKILL_ID = 1;
+
+    // max hours
+    uint public constant MAX_WORKED_HOURS = 720;
 
     // number of current workers
     uint public totalWorkers;
@@ -67,7 +71,7 @@ contract LbFactory is LbAccess, LbOpenClose {
 
     event WorkStart(uint indexed lbId);
     event WorkStop(uint indexed lbId);
-    event WithdrawPayment(uint indexed lbId, uint amount);
+    event WithdrawPayment(uint indexed lbId, uint amount); // TODO: ADD ACCOUNT
 
     constructor(address littlebitsNFT, address littlebucksTKN, address lbSkills) {
         // access control config
@@ -82,6 +86,16 @@ contract LbFactory is LbAccess, LbOpenClose {
     }
 
     // MANAGER_fireWorker
+    function MANAGER_fire(uint tokenId) public {
+        require(hasRole[msg.sender][MANAGER_ROLE], 'MANAGER_ROLE access required');
+        stopWork(tokenId);
+    }
+
+    function MANAGER_setSkillAddress(address lbSkills) public {
+        require(hasRole[msg.sender][MANAGER_ROLE], 'MANAGER_ROLE access required');
+        require(isOpen, "Building is closed");
+        _lbSkills = LbSkills(lbSkills);
+    }
 
     function getWorker(uint tokenId) public view returns (Worker memory worker) {
         worker = _workers[tokenId];
@@ -115,9 +129,10 @@ contract LbFactory is LbAccess, LbOpenClose {
         emit WorkStop(tokenId);
 	}
 
-    // withdraw payment
+    // withdraw payment to the token owner
     function withdrawPayment(uint tokenId) public onlyTokenOwner(tokenId) {
         require(_workers[tokenId].working, "Not currently working");
+        address tokenOwner = _littlebitsNFT.ownerOf(tokenId);
         // calculate final payment
         (uint totalPayment, uint hoursWorked, uint remainderBlocks) = getTotalPaymentInfo(tokenId);
         // save token data
@@ -127,11 +142,11 @@ contract LbFactory is LbAccess, LbOpenClose {
         // save contract data
         totalLbucksMinted += totalPayment;
         // save acc data
-        accountTotalEarnings[msg.sender] += totalPayment;
+        accountTotalEarnings[tokenOwner] += totalPayment;
         // skill up
         _lbSkills.SKILLCHANGER_changeSkill(tokenId, WORKING_SKILL_ID, hoursWorked * 100);
         // pay
-        _littlebucksTKN.MINTER_mint(_littlebitsNFT.ownerOf(tokenId), totalPayment);
+        _littlebucksTKN.MINTER_mint(tokenOwner, totalPayment);
         emit WithdrawPayment(tokenId, totalPayment);
     }
 
@@ -139,6 +154,7 @@ contract LbFactory is LbAccess, LbOpenClose {
         bool isWorking = _workers[tokenId].working;
         require(isWorking, "Not currently working");
         (hoursWorked, remainderBlocks) = _calculateHoursWorked(tokenId);
+        hoursWorked = hoursWorked > MAX_WORKED_HOURS ? MAX_WORKED_HOURS : hoursWorked;
         uint basePayment = _hourPayment * hoursWorked;
         uint rarityBonusInBips = getRarityBonusInBips(tokenId);
         uint skillBonusInBips = getSkillBonusInBips(tokenId);

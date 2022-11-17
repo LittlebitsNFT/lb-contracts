@@ -42,7 +42,7 @@ contract LbBank is LbAccess, LbOpenClose {
 
     // events
     event Deposit(address indexed account, uint amount);
-    event Withdraw(address indexed account, uint amount);
+    event Withdraw(address indexed account, uint amount, uint initialDeposit);
 
     constructor(address littlebucksTKN) {
         // access control config
@@ -54,8 +54,10 @@ contract LbBank is LbAccess, LbOpenClose {
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
     }
 
-    // ADMIN force withdraw
-    // ADMIN withdraw mtv
+    function ADMIN_forceWithdraw(address account) public {
+        require(hasRole[msg.sender][ADMIN_ROLE], 'ADMIN_ROLE access required');
+        _withdraw(account);
+    }
     
     function deposit(uint amount) public {
         require(deposited[msg.sender] == 0, 'Must withdraw first');
@@ -67,20 +69,25 @@ contract LbBank is LbAccess, LbOpenClose {
     }
 
     function withdraw() public {
-        uint depositedAmount = deposited[msg.sender];
+        _withdraw(msg.sender);
+    }
+
+    function _withdraw(address account) private {
+        uint depositedAmount = deposited[account];
         require(depositedAmount > 0, 'Not currently invested');
-        // initial deposited transfer
-        _littlebucksTKN.TRANSFERER_transfer(address(this), msg.sender, depositedAmount);
-        deposited[msg.sender] = 0;
-        totalDeposited -= depositedAmount;
         // interest mint
-        (uint weeksInvested,) = _calculateWeeksInvested(msg.sender);
+        (uint weeksInvested,) = _calculateWeeksInvested(account);
         uint interest = depositedAmount * weeksInvested * _weekBips / 10000;
-        _littlebucksTKN.MINTER_mint(msg.sender, interest);
+        _littlebucksTKN.MINTER_mint(address(this), interest);
         totalLbucksMinted += interest;
-        // emit with total
+        // total
         uint withdrawAmount = depositedAmount + interest;
-        emit Withdraw(msg.sender, withdrawAmount);
+        // single transfer
+        _littlebucksTKN.TRANSFERER_transfer(address(this), account, withdrawAmount);
+        deposited[account] = 0;
+        totalDeposited -= depositedAmount;
+        // emit with total
+        emit Withdraw(account, withdrawAmount, depositedAmount);
     }
 
     // returns hours worked and remainder blocks.

@@ -35,49 +35,49 @@ contract LbBadgeChecker1 is BadgeValidator {
         } 
         if (badgeId == 1002) {
             uint flairsAcquired = _lbWorld.getFlairsOwnedSize(tokenId);
-            return flairsAcquired >= 9;
+            return flairsAcquired >= 10;
         } 
         if (badgeId == 1003) {
             uint flairsAcquired = _lbWorld.getFlairsOwnedSize(tokenId);
-            return flairsAcquired >= 18;
+            return flairsAcquired >= 25;
         }
         // factory total paid
         if (badgeId == 2001) {
             Worker memory worker = _lbFactory.getWorker(tokenId);
-            return worker.totalPaid >= 500;
+            return worker.totalPaid >= 10 * 100;
         }
         if (badgeId == 2002) {
             Worker memory worker = _lbFactory.getWorker(tokenId);
-            return worker.totalPaid >= 1500;
+            return worker.totalPaid >= 100 * 100;
         }
         if (badgeId == 2003) {
             Worker memory worker = _lbFactory.getWorker(tokenId);
-            return worker.totalPaid >= 3000;
+            return worker.totalPaid >= 500 * 100;
         }
         if (badgeId == 2004) {
             Worker memory worker = _lbFactory.getWorker(tokenId);
-            return worker.totalPaid >= 5000;
+            return worker.totalPaid >= 1000 * 100;
         }
         if (badgeId == 2005) {
             Worker memory worker = _lbFactory.getWorker(tokenId);
-            return worker.totalPaid >= 10000;
+            return worker.totalPaid >= 5000 * 100;
         }
         // working skill
         if (badgeId == 3001) {
             uint workingSkill = _lbSkills.getTokenSkill(tokenId, WORKING_SKILL_ID);
-            return workingSkill >= 3000;
+            return workingSkill >= 10 * 100;
         }
         if (badgeId == 3002) {
             uint workingSkill = _lbSkills.getTokenSkill(tokenId, WORKING_SKILL_ID);
-            return workingSkill >= 7000;
+            return workingSkill >= 30 * 100;
         }
         if (badgeId == 3003) {
             uint workingSkill = _lbSkills.getTokenSkill(tokenId, WORKING_SKILL_ID);
-            return workingSkill >= 9000;
+            return workingSkill >= 90 * 100;
         }
         if (badgeId == 3004) {
             uint workingSkill = _lbSkills.getTokenSkill(tokenId, WORKING_SKILL_ID);
-            return workingSkill >= 10000;
+            return workingSkill >= 100 * 100;
         }
         // world time shown
         if (badgeId == 4001) {

@@ -30,7 +30,7 @@ contract LbSkills is LbAccess, LbOpenClose {
     // mapping from (skillId, bracketId) to bracket xp cumulative
     mapping(uint => mapping(uint => uint)) private _bracketsXp;
 
-    event SkillUp(uint indexed tokenId, uint indexed skillId, uint change, uint total);
+    event SkillUp(uint indexed tokenId, uint indexed skillId, uint xpChange, uint xpTotal, uint skillTotal);
 
     constructor() {
         // access control config
@@ -51,14 +51,14 @@ contract LbSkills is LbAccess, LbOpenClose {
         }
     }
 
-    function SKILLCHANGER_changeSkill(uint tokenId, uint skillId, uint change) public {
+    function SKILLCHANGER_changeSkill(uint tokenId, uint skillId, uint xpChange) public {
         require(hasRole[msg.sender][SKILLCHANGER_ROLE], 'SKILLCHANGER_ROLE access required');
         require(isOpen, "Building is closed");
         uint currentBracket = _skills[tokenId][skillId].currentBracket;
         uint currentBracketXp = _bracketsXp[skillId][currentBracket];
         // next bracket exists (wont earn xp if at max bracket)
         if (currentBracketXp != 0) {
-            uint newTotalXp = _skills[tokenId][skillId].totalXp + change;
+            uint newTotalXp = _skills[tokenId][skillId].totalXp + xpChange;
             // update xp
             _skills[tokenId][skillId].totalXp = newTotalXp;
             // update bracket
@@ -72,7 +72,8 @@ contract LbSkills is LbAccess, LbOpenClose {
                 newTotalXp = _bracketsXp[skillId][currentBracket-1];
                 _skills[tokenId][skillId].totalXp = newTotalXp;
             }
-            emit SkillUp(tokenId, skillId, change, newTotalXp);
+            uint totalSkill = getTokenSkill(tokenId, skillId);
+            emit SkillUp(tokenId, skillId, xpChange, newTotalXp, totalSkill);
         }
     }
 
