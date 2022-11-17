@@ -27,6 +27,7 @@ contract LbBadges is LbAccess, LbOpenClose {
     uint public constant ADMIN_ROLE = 99;
     uint public constant BADGE_REGISTERER_ROLE = 1; // set / modify badge validators (callbacks)
     uint public constant BADGE_REMOVER_ROLE = 2; // removes badges
+    uint public constant BADGE_GIVER_ROLE = 3; // gives badges
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
@@ -79,6 +80,15 @@ contract LbBadges is LbAccess, LbOpenClose {
         }
     }
 
+    // gives badge without checking for requirements (will still give reward)
+    function BADGE_GIVER_giveBadge(uint tokenId, uint badgeId) public {
+        require(hasRole[msg.sender][BADGE_GIVER_ROLE], 'BADGE_GIVER access required');
+        require(isOpen, "Building is closed");
+        if (_isBadgeOwned[tokenId][badgeId]) return;
+        address lbOwner = _littlebitsNFT.ownerOf(tokenId);
+        _unlockBadge(tokenId, badgeId, lbOwner);
+    }
+
     function unlockBadge(uint tokenId, uint badgeId, uint[] memory optionalData) public {
         require(isOpen, "Building is closed");
         address lbOwner = _littlebitsNFT.ownerOf(tokenId);
@@ -86,6 +96,10 @@ contract LbBadges is LbAccess, LbOpenClose {
         require(!_isBadgeOwned[tokenId][badgeId], 'Badge already owned');
         bool reqsMet = _badgeCheckerCallback[badgeId].checkBadgeRequirements(tokenId, badgeId, optionalData);
         require(reqsMet, 'Badge requirements not met');
+        _unlockBadge(tokenId, badgeId, lbOwner);
+    }
+
+    function _unlockBadge(uint tokenId, uint badgeId, address lbOwner) public {
         _isBadgeOwned[tokenId][badgeId] = true;
         _badgesOwned[tokenId].push(badgeId);
         if(address(_badgeRewarderCallback[badgeId]) != address(0)) {
