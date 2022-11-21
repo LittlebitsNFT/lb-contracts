@@ -16,30 +16,35 @@ import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
 // access requirements:
-// must be MINTER on LittlebucksTKN
-// must be TRANSFERER on LittlebucksTKN
-// must be BURNER on LittlebucksTKN (tbi)
+// must be MINTER and TRANSFERER on LittlebucksTKN
 
 contract LbLottery is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
-    uint public constant MANAGER_ROLE = 1;
+    uint public constant OTHERCONTRACTS_ROLE = 88;
+    uint public constant SETTINGS_ROLE = 1;
     
-    // constants
-    uint public constant MIN_LOTTERY_HOURS = 1; //= 167;
-    uint public constant BLOCKS_PER_HOUR = 20; //= 1200;
-    uint public constant TOTAL_TICKETS = 10000;
-    uint public constant TICKET_BURN_VALUE = 10 * 100;
-    uint public constant TICKET_ADDED_VALUE = 40 * 100;
-    uint public constant TICKET_PRICE = TICKET_BURN_VALUE + TICKET_ADDED_VALUE;
-
-    // start lottery prize
+    // settings
+    uint private _minLotteryHours = 1; //= 167;
+    uint private _blocksPerHour = 20; //= 1200;
+    uint private _totalTickets = 10000;
+    uint private _ticketBurnAmount = 10 * 100;
+    uint private _ticketAddAmount = 40 * 100;
     uint private _startPrize = 10000 * 100;
 
+    // current drawId
     uint public currentDrawId = 0;
 
+    // 2-step draw refBlock
+    uint public drawRefBlock;
+
+    // state
+    bool public isRunning;
+    bool public isDrawing;
+    bool private isSetupDone;
+
     // mapping from drawId to number of tickets
-    mapping(uint => uint) public currentlyEnrolled;
+    mapping(uint => uint) public enrolled;
 
     // mapping from drawId to ticket to isEnrolled
     mapping(uint => mapping(uint => bool)) public isEnrolled;
@@ -56,14 +61,6 @@ contract LbLottery is LbAccess, LbOpenClose {
     // mapping from account to total earnings
     mapping(address => uint) public accountTotalEarnings;
 
-    bool private isSetupDone;
-
-    bool public isRunning;
-
-    bool public isDrawing;
-
-    uint public drawRefBlock;
-    
     // mapping from drawId to startBlock
     mapping(uint => uint) public startBlock;
 
@@ -84,6 +81,38 @@ contract LbLottery is LbAccess, LbOpenClose {
         // other contracts
         _littlebitsNFT = LittlebitsNFT(littlebitsNFT);
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
+    }
+
+    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
+        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
+        if (contractId == 0) {
+            _littlebitsNFT = LittlebitsNFT(newAddress);
+        }
+        if (contractId == 1) {
+            _littlebucksTKN = LittlebucksTKN(newAddress);
+        }
+    }
+
+    function SETTINGS_setSettingsVar(uint settingsVarId, uint newValue) public {
+        require(hasRole[msg.sender][SETTINGS_ROLE], 'SETTINGS access required');
+        if (settingsVarId == 0) {
+            _minLotteryHours = newValue;
+        }
+        if (settingsVarId == 1) {
+            _blocksPerHour = newValue;
+        }
+        if (settingsVarId == 2) {
+            _totalTickets = newValue;
+        }
+        if (settingsVarId == 3) {
+            _ticketBurnAmount = newValue;
+        }
+        if (settingsVarId == 4) {
+            _ticketAddAmount = newValue;
+        }
+        if (settingsVarId == 5) {
+            _startPrize = newValue;
+        }
     }
 
     function setupLottery() public {
@@ -117,7 +146,7 @@ contract LbLottery is LbAccess, LbOpenClose {
 
     function firstStepDraw() public {
         require(isRunning, "Lottery is NOT running");
-        require(startBlock[currentDrawId] < block.number - MIN_LOTTERY_HOURS * BLOCKS_PER_HOUR, "Not enough time elapsed");
+        require(startBlock[currentDrawId] < block.number - _minLotteryHours * _blocksPerHour, "Not enough time elapsed");
         isRunning = false;
         isDrawing = true;
         drawRefBlock = block.number;
@@ -127,7 +156,7 @@ contract LbLottery is LbAccess, LbOpenClose {
         require(isDrawing, "Lottery is NOT drawing");
         bytes32 drawRefBlockHash = blockhash(drawRefBlock);
         if (drawRefBlockHash != 0) {
-            uint luckyTicket = uint(keccak256(abi.encodePacked(drawRefBlockHash))) % TOTAL_TICKETS;
+            uint luckyTicket = uint(keccak256(abi.encodePacked(drawRefBlockHash))) % _totalTickets;
             luckyTicket = 891;
             drawnTicket[currentDrawId] = luckyTicket;
             bool hadWinner = isEnrolled[currentDrawId][luckyTicket];
@@ -152,12 +181,13 @@ contract LbLottery is LbAccess, LbOpenClose {
         require(!isEnrolled[currentDrawId][tokenId], 'Already enrolled');
         require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner");
         // pay
-        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), TICKET_BURN_VALUE); // todo: change to burn
-        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), TICKET_ADDED_VALUE);
+        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), _ticketBurnAmount + _ticketAddAmount);
+        // burn fee
+        _littlebucksTKN.burn(_ticketBurnAmount);
         // register
-        currentlyEnrolled[currentDrawId] += 1;
+        enrolled[currentDrawId] += 1;
         isEnrolled[currentDrawId][tokenId] = true;
-        prizePool[currentDrawId] += TICKET_ADDED_VALUE;
+        prizePool[currentDrawId] += _ticketAddAmount;
         // event
         emit TicketBought(tokenId);
     }

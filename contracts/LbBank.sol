@@ -18,24 +18,23 @@ import "./LbOpenClose.sol";
 contract LbBank is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
+    uint public constant OTHERCONTRACTS_ROLE = 88;
+    uint public constant SETTINGS_ROLE = 1;
 
-    // interest per week in bips 
-    uint private _weekBips = 100; // 1%
-
-    // base blocks per week
-    uint private constant _blocksPerWeek = 201_600; // 1 week
-    
     // total deposited
     uint public totalDeposited;
-
-    // lbucks mint tracking
-    uint public totalLbucksMinted;
-
+    
     // mapping from wallet to deposited amount
     mapping(address => uint) public deposited;
 
     // mapping from wallet to refBlock
     mapping(address => uint) public refBlock;
+    
+    // interest per week in bips 
+    uint private _weekBips = 100; // 1%
+
+    // base blocks per week
+    uint private _blocksPerWeek = 201_600;
 
     // other contracts
     LittlebucksTKN private _littlebucksTKN;
@@ -79,14 +78,12 @@ contract LbBank is LbAccess, LbOpenClose {
         (uint weeksInvested,) = _calculateWeeksInvested(account);
         uint interest = depositedAmount * weeksInvested * _weekBips / 10000;
         _littlebucksTKN.MINTER_mint(address(this), interest);
-        totalLbucksMinted += interest;
-        // total
+        // transfer total
         uint withdrawAmount = depositedAmount + interest;
-        // single transfer
         _littlebucksTKN.TRANSFERER_transfer(address(this), account, withdrawAmount);
         deposited[account] = 0;
         totalDeposited -= depositedAmount;
-        // emit with total
+        // emit
         emit Withdraw(account, withdrawAmount, depositedAmount);
     }
 
@@ -103,5 +100,20 @@ contract LbBank is LbAccess, LbOpenClose {
         _refBlock = refBlock[account];
     }
 
+    function SETTINGS_setBlocksPerWeek(uint newBlocksPerWeek) public {
+        require(hasRole[msg.sender][SETTINGS_ROLE], 'SETTINGS access required');
+        _blocksPerWeek = newBlocksPerWeek;
+    }
 
+    function SETTINGS_setWeekBips(uint newWeekBips) public {
+        require(hasRole[msg.sender][SETTINGS_ROLE], 'SETTINGS access required');
+        _weekBips = newWeekBips;
+    }
+
+    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
+        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
+        if (contractId == 0) {
+            _littlebucksTKN = LittlebucksTKN(newAddress);
+        }
+    }
 }

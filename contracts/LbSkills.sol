@@ -8,6 +8,7 @@ pragma solidity ^0.8.12;
  * @dev Littlebits metaverse - Skills Manager
  */
 
+import "./LittlebitsNFT.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
@@ -30,13 +31,22 @@ contract LbSkills is LbAccess, LbOpenClose {
     // mapping from (skillId, bracketId) to bracket xp cumulative
     mapping(uint => mapping(uint => uint)) private _bracketsXp;
 
+    // mapping from (account, skillId) to max raised skill by account
+    mapping(address => mapping(uint => uint)) public accMaxSkill;
+
+    // other contracts
+    LittlebitsNFT private _littlebitsNFT;
+
     event SkillUp(uint indexed tokenId, uint indexed skillId, uint xpChange, uint xpTotal, uint skillTotal);
 
-    constructor() {
+    constructor(address littlebitsNFTAddr) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
         hasRole[msg.sender][ADMIN_ROLE] = true;
+
+        // other contracts refs
+        _littlebitsNFT = LittlebitsNFT(littlebitsNFTAddr);
     }
 
     function BRACKETSSETTER_setBrackets(uint skillId, uint[] memory bracketIds, uint[] memory bracketsXp) public {
@@ -73,6 +83,11 @@ contract LbSkills is LbAccess, LbOpenClose {
                 _skills[tokenId][skillId].totalXp = newTotalXp;
             }
             uint totalSkill = getTokenSkill(tokenId, skillId);
+            // register max skill acquired by account
+            address owner = _littlebitsNFT.ownerOf(tokenId);
+            if (accMaxSkill[owner][skillId] < totalSkill) {
+                accMaxSkill[owner][skillId] = totalSkill;
+            }
             emit SkillUp(tokenId, skillId, xpChange, newTotalXp, totalSkill);
         }
     }

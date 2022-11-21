@@ -25,6 +25,7 @@ interface BadgeRewarder {
 contract LbBadges is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
+    uint public constant OTHERCONTRACTS_ROLE = 88;
     uint public constant BADGE_REGISTERER_ROLE = 1; // set / modify badge validators (callbacks)
     uint public constant BADGE_REMOVER_ROLE = 2; // removes badges
     uint public constant BADGE_GIVER_ROLE = 3; // gives badges
@@ -40,8 +41,10 @@ contract LbBadges is LbAccess, LbOpenClose {
     
     // badgeId to badge checker function
     mapping(uint => BadgeValidator) private _badgeCheckerCallback;
-
     mapping(uint => BadgeRewarder) private _badgeRewarderCallback;
+
+    // (account, badgeId) to number_of_times_unlocked
+    mapping(address => mapping(uint => uint)) public accountUnlockCounter;
 
     event BadgeRegistered(uint indexed badgeId, address indexed validatorAddress);
     event BadgeUnlocked(uint indexed tokenId, uint indexed badgeId);
@@ -63,13 +66,13 @@ contract LbBadges is LbAccess, LbOpenClose {
         emit BadgeRegistered(badgeId, validatorAddress);
     }
 
-    // Will do a full search if startInd is zero. You can specify where it is on the owned list
+    // will do a full search if startInd is zero. You can specify where it is on the owned list
     function BADGE_REMOVER_removeBadge(uint tokenId, uint badgeId, uint startInd) public {
         require(hasRole[msg.sender][BADGE_REMOVER_ROLE], 'BADGE_REMOVER access required');
         require(isOpen, "Building is closed");
         require(_isBadgeOwned[tokenId][badgeId], 'Badge not owned');
         _isBadgeOwned[tokenId][badgeId] = false;
-        // remove from badgesOwned list.
+        // remove from badgesOwned list
         uint badgesOwnedLength = _badgesOwned[tokenId].length;
         for (uint i = startInd; i < badgesOwnedLength; i++) {
             if (_badgesOwned[tokenId][i] == badgeId) {
@@ -78,6 +81,9 @@ contract LbBadges is LbAccess, LbOpenClose {
                 break;
             }
         }
+        // remove from account registry
+        address owner = _littlebitsNFT.ownerOf(tokenId);
+        accountUnlockCounter[owner][badgeId] -= 1;
     }
 
     // gives badge without checking for requirements (will still give reward)
@@ -89,23 +95,21 @@ contract LbBadges is LbAccess, LbOpenClose {
         _unlockBadge(tokenId, badgeId, lbOwner);
     }
 
+    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
+        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
+        if (contractId == 0) {
+            _littlebitsNFT = LittlebitsNFT(newAddress);
+        }
+    }
+    
     function unlockBadge(uint tokenId, uint badgeId, uint[] memory optionalData) public {
         require(isOpen, "Building is closed");
         address lbOwner = _littlebitsNFT.ownerOf(tokenId);
-        require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner");
+        require(msg.sender == lbOwner, "Not the owner");
         require(!_isBadgeOwned[tokenId][badgeId], 'Badge already owned');
         bool reqsMet = _badgeCheckerCallback[badgeId].checkBadgeRequirements(tokenId, badgeId, optionalData);
         require(reqsMet, 'Badge requirements not met');
         _unlockBadge(tokenId, badgeId, lbOwner);
-    }
-
-    function _unlockBadge(uint tokenId, uint badgeId, address lbOwner) public {
-        _isBadgeOwned[tokenId][badgeId] = true;
-        _badgesOwned[tokenId].push(badgeId);
-        if(address(_badgeRewarderCallback[badgeId]) != address(0)) {
-            _badgeRewarderCallback[badgeId].rewardBadgeUnlock(tokenId, badgeId, lbOwner);
-        }
-        emit BadgeUnlocked(tokenId, badgeId);
     }
 
     // check if badge requirements are met
@@ -165,5 +169,17 @@ contract LbBadges is LbAccess, LbOpenClose {
         }
         return ownedArray;
     }
+
+
+
+    function _unlockBadge(uint tokenId, uint badgeId, address lbOwner) private {
+        _isBadgeOwned[tokenId][badgeId] = true;
+        _badgesOwned[tokenId].push(badgeId);
+        if(address(_badgeRewarderCallback[badgeId]) != address(0)) {
+            _badgeRewarderCallback[badgeId].rewardBadgeUnlock(tokenId, badgeId, lbOwner);
+        }
+        accountUnlockCounter[lbOwner][badgeId] += 1;
+        emit BadgeUnlocked(tokenId, badgeId);
+    }    
 
 }

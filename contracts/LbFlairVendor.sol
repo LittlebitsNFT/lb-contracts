@@ -21,6 +21,7 @@ import "./LbOpenClose.sol";
 contract LbFlairVendor is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
+    uint public constant OTHERCONTRACTS_ROLE = 88;
     uint public constant SALES_ROLE = 1; // can add/remove flairs for sale
 
     // other contracts
@@ -46,33 +47,46 @@ contract LbFlairVendor is LbAccess, LbOpenClose {
     }
 
     // mapping from flairId to price (lbucks wei)
-    mapping(uint => uint) public flairPrice;
+    mapping(uint => uint) public price;
 
     // add flair for sale
-    function SALES_addForSale(uint flairId, uint price) public {
+    function SALES_addForSale(uint flairId, uint newPrice) public {
         require(hasRole[msg.sender][SALES_ROLE], 'SALES access required');
         require(isOpen, 'Contract closed');
-        require(flairPrice[flairId] == 0, 'Flair already for sale');
-        flairPrice[flairId] = price;
-        emit FlairAddedForSale(flairId, price);
+        require(price[flairId] == 0, 'Flair already for sale');
+        price[flairId] = newPrice;
+        emit FlairAddedForSale(flairId, newPrice);
     }
 
     // remove flair from sale
     function SALES_removeForSale(uint flairId) public {
         require(hasRole[msg.sender][SALES_ROLE], 'SALES access required');
         require(isOpen, 'Contract closed');
-        require(flairPrice[flairId] != 0, 'Flair not for sale');
-        flairPrice[flairId] = 0;
+        require(price[flairId] != 0, 'Flair not for sale');
+        price[flairId] = 0;
         emit FlairRemovedForSale(flairId);
     }
-
 
     function buyFlair(uint tokenId, uint flairId) public {
         require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner");
         require(isOpen, 'Contract closed');
-        require(flairPrice[flairId] != 0, 'Flair not for sale');
-        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), flairPrice[flairId]);
+        require(price[flairId] != 0, 'Flair not for sale');
+        _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), price[flairId]);
+        _littlebucksTKN.burn(price[flairId]);
         _lbWorld.FLAIRGIVER_giveFlair(tokenId, flairId);
-        emit FlairSold(tokenId, flairId, flairPrice[flairId]);
+        emit FlairSold(tokenId, flairId, price[flairId]);
+    }
+
+    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
+        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
+        if (contractId == 0) {
+            _littlebitsNFT = LittlebitsNFT(newAddress);
+        }
+        if (contractId == 1) {
+            _littlebucksTKN = LittlebucksTKN(newAddress);
+        }
+        if (contractId == 2) {
+            _lbWorld = LbWorld(newAddress);
+        }
     }
 }

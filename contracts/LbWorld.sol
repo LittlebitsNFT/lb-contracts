@@ -27,13 +27,17 @@ struct WorldPlacedInfo {
 contract LbWorld is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
+    uint public constant OTHERCONTRACTS_ROLE = 88;
     uint public constant FLAIRGIVER_ROLE = 1;
     uint public constant LBPLACER_ROLE = 2;
-    uint public constant PRICESETTER_ROLE = 3;
+    uint public constant SETTINGS_ROLE = 3;
 
     // default lb placement price
     uint public placementPrice = 1 * 100;
     
+    // maximum blocks considered to be registered on pastTotalBlocksPlaced each time
+    uint public maxPlacementBlocksConsidered = 24 * 60 * 60 / 3; // default: 24h for 3s block time
+
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
     LittlebucksTKN private _littlebucksTKN;
@@ -56,7 +60,8 @@ contract LbWorld is LbAccess, LbOpenClose {
     // current total time placed = pastTotalBlocksPlaced + last time placed
     mapping(uint => uint) private pastTotalBlocksPlaced;
 
-    uint private maxPlacementBlocksConsidered = 24 * 60 * 60 / 3; // (24h) maximum blocks considered to be registered on pastTotalBlocksPlaced
+    // mapping from account to maxFlairsAcquired on a single token
+    mapping(address => uint) private accMaxFlairsSingleToken;
 
     constructor(address littlebitsNFTAddr, address littlebucksTKNAddr) {
         // access control config
@@ -89,6 +94,21 @@ contract LbWorld is LbAccess, LbOpenClose {
         return lastPlaced[tokenId];
     }
 
+    function getAccMaxFlairsSingleToken(address account) public view returns (uint) {
+        return accMaxFlairsSingleToken[account];
+    }
+
+    // gives current total blocks placed, including last session
+    function getTotalBlocksPlaced(uint tokenId) public view returns (uint) {
+        uint lastPlacedTotalBlocks = 0;
+        uint lastPlacedBlock = lastPlaced[tokenId].block;
+        if (lastPlacedBlock != 0) {
+            lastPlacedTotalBlocks = block.number - lastPlacedBlock;
+            lastPlacedTotalBlocks = lastPlacedTotalBlocks > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : lastPlacedTotalBlocks;
+        }
+        return lastPlacedTotalBlocks + pastTotalBlocksPlaced[tokenId];
+    }
+
     // place lb in the world
     function placeLb(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs) public {
         require(isOpen, 'Contract closed');
@@ -101,33 +121,17 @@ contract LbWorld is LbAccess, LbOpenClose {
         }
         // pay lbucks
         _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), placementPrice);
-        // update past total blocks placed
-        uint lastPlacedBlock = lastPlaced[tokenId].block;
-        if (lastPlacedBlock != 0) {
-            uint blocksPlaced = block.number - lastPlacedBlock;
-            blocksPlaced = blocksPlaced > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : blocksPlaced;
-            pastTotalBlocksPlaced[tokenId] += blocksPlaced;
-        }
-        // update lastPlaced state
-        lastPlaced[tokenId] = WorldPlacedInfo(block.number, coords, flipped, flairs);
+        _littlebucksTKN.burn(placementPrice);
+        // update position
+        _updatedPlacedPosition(tokenId, coords, flipped, flairs);
         // event
         emit TokenPlaced(tokenId, coords, flipped, flairs);
-    }
-
-    function getTotalBlocksPlaced(uint tokenId) public view returns (uint) {
-        uint lastPlacedRefBlock = lastPlaced[tokenId].block;
-        uint lastPlacedBlocks = 0;
-        if (lastPlacedRefBlock != 0) {
-            lastPlacedBlocks = block.number - lastPlacedRefBlock;
-            lastPlacedBlocks = lastPlacedBlocks > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : lastPlacedBlocks;
-        }
-        return lastPlacedBlocks + pastTotalBlocksPlaced[tokenId];
     }
 
     // authorized contracts can put lbs in the world with custom effects (safeFlairs)
     // doesnt check lbId ownership
     // doesnt check safeFlairs ownership
-    // doesnt charge anything
+    // doesnt charge lbucks
     function LBPLACER_placeLb(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs, uint[] memory safeFlairs) public {
         require(hasRole[msg.sender][LBPLACER_ROLE], 'LBPLACER access required');
         require(isOpen, 'Contract closed');
@@ -138,34 +142,74 @@ contract LbWorld is LbAccess, LbOpenClose {
         }
         // merge owned and custom flairs
         uint[] memory allFlairs = new uint[](flairs.length + safeFlairs.length);
-        // update past total blocks placed
-        uint lastPlacedBlock = lastPlaced[tokenId].block;
-        if (lastPlacedBlock != 0) {
-            uint blocksPlaced = block.number - lastPlacedBlock;
-            blocksPlaced = blocksPlaced > maxPlacementBlocksConsidered ? maxPlacementBlocksConsidered : blocksPlaced;
-            pastTotalBlocksPlaced[tokenId] += blocksPlaced;
-        }
-        // update lastPlaced state
-        lastPlaced[tokenId] = WorldPlacedInfo(block.number, coords, flipped, allFlairs);
+        // update position
+        _updatedPlacedPosition(tokenId, coords, flipped, allFlairs);
         // event
         emit TokenPlaced(tokenId, coords, flipped, allFlairs);
     }
 
-    // changes default lbplacing price
-    function PRICESETTER_setPlacementPrice(uint weiPrice) public {
-        require(hasRole[msg.sender][ADMIN_ROLE], 'PRICESETTER access required');
+    // changes max placement time considered
+    function SETTINGS_setMaxBlocksConsidered(uint maxBlocks) public {
+        require(hasRole[msg.sender][SETTINGS_ROLE], 'SETTINGS access required');
+        maxPlacementBlocksConsidered = maxBlocks;
+    }
+
+    // changes lbplacing price
+    function SETTINGS_setPlacementPrice(uint weiPrice) public {
+        require(hasRole[msg.sender][SETTINGS_ROLE], 'SETTINGS access required');
         placementPrice = weiPrice;
     }
 
-    function FLAIRGIVER_giveFlair(uint lbId, uint flairId) public {
+    function FLAIRGIVER_giveFlair(uint tokenId, uint flairId) public {
         require(hasRole[msg.sender][FLAIRGIVER_ROLE], 'FLAIRGIVER access required');
         require(isOpen, 'Contract closed');
-        if (!isFlairOwned[lbId][flairId]) {
-            isFlairOwned[lbId][flairId] = true;
-            flairsAcquired[lbId].push(flairId);
-            emit FlairAcquired(lbId, flairId);
+        if (!isFlairOwned[tokenId][flairId]) {
+            isFlairOwned[tokenId][flairId] = true;
+            flairsAcquired[tokenId].push(flairId);
+            // register max flairs acquired by account on a single token
+            uint tokenFlairsAcquiredLength = flairsAcquired[tokenId].length;
+            address owner = _littlebitsNFT.ownerOf(tokenId);
+            if (accMaxFlairsSingleToken[owner] < tokenFlairsAcquiredLength) {
+                accMaxFlairsSingleToken[owner] = tokenFlairsAcquiredLength;
+            }
+            // emit
+            emit FlairAcquired(tokenId, flairId);
         }
     }
 
-    // todo: ADD FLAIRGIVER_removeFlair function?
+    // will do a full search if startInd is zero. You can specify where it is on the owned list
+    function FLAIRGIVER_removeFlair(uint tokenId, uint flairId, uint startInd) public {
+        require(hasRole[msg.sender][FLAIRGIVER_ROLE], 'FLAIRGIVER access required');
+        require(isOpen, 'Contract closed');
+        if (isFlairOwned[tokenId][flairId]) {
+            isFlairOwned[tokenId][flairId] = false;
+            // remove from flairsAcquired list
+            uint flairsAcquiredLength = flairsAcquired[tokenId].length;
+            for (uint i = startInd; i < flairsAcquiredLength; i++) {
+                if (flairsAcquired[tokenId][i] == flairId) {
+                    flairsAcquired[tokenId][i] = flairsAcquired[tokenId][flairsAcquiredLength - 1];
+                    flairsAcquired[tokenId].pop();
+                    break;
+                }
+            }
+        }
+    }
+
+    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
+        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
+        if (contractId == 0) {
+            _littlebitsNFT = LittlebitsNFT(newAddress);
+        }
+        if (contractId == 1) {
+            _littlebucksTKN = LittlebucksTKN(newAddress);
+        }
+    }
+
+    // update total blocks placed and sets a new placed position
+    function _updatedPlacedPosition(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs) private {
+        // update past total blocks placed
+        pastTotalBlocksPlaced[tokenId] = getTotalBlocksPlaced(tokenId);
+        // sets a new placed position
+        lastPlaced[tokenId] = WorldPlacedInfo(block.number, coords, flipped, flairs);
+    }
 }
