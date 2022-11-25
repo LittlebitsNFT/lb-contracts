@@ -97,7 +97,7 @@ contract LbSkills is LbAccess, LbOpenClose {
         SkillTracker memory skillTracker = _skills[tokenId][skillId];
         uint bracketXp = getBracketXp(skillId, skillTracker.currentBracket);
         uint prevBracketXp = skillTracker.currentBracket == 0 ? 0 : getBracketXp(skillId, skillTracker.currentBracket - 1);
-        uint currentBracketProgress = bracketXp == 0 ? 0 : ((skillTracker.totalXp - prevBracketXp) * 10000 * 500) / (bracketXp - prevBracketXp) / 10000; // from 0 to 500
+        uint currentBracketProgress = bracketXp == 0 ? 0 : ((skillTracker.totalXp - prevBracketXp) * 10000 * 500) / (bracketXp - prevBracketXp) / 10000; // single-bracket progress from 0 to 500
         uint previousBracketsProgress = skillTracker.currentBracket * 500;
         totalProgress = currentBracketProgress + previousBracketsProgress;
     }

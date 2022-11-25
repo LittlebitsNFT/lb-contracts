@@ -8,7 +8,6 @@ pragma solidity ^0.8.12;
  * @dev Littlebits token and wallet persistent data hub
  */
 
-import "./LittlebitsNFT.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
@@ -30,9 +29,6 @@ contract LbBadgesAcc is LbAccess, LbOpenClose {
     uint public constant BADGE_REMOVER_ROLE = 2; // removes badges
     uint public constant BADGE_GIVER_ROLE = 3; // gives badges
 
-    // other contracts
-    LittlebitsNFT private _littlebitsNFT;
-
     // (account, badgeId) to owned
     mapping(address => mapping(uint => bool)) private _isBadgeOwned;
 
@@ -46,14 +42,12 @@ contract LbBadgesAcc is LbAccess, LbOpenClose {
     event BadgeAccRegistered(uint indexed badgeId, address indexed validatorAddress);
     event BadgeAccUnlocked(address indexed account, uint indexed badgeId);
 
-    constructor(address littlebitsNFT) {
+    constructor() {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
         hasRole[msg.sender][ADMIN_ROLE] = true;
-
         // other contracts
-        _littlebitsNFT = LittlebitsNFT(littlebitsNFT);
     }
 
     function BADGE_REGISTERER_registerValidator(uint badgeId, address validatorAddress) public {
@@ -86,13 +80,6 @@ contract LbBadgesAcc is LbAccess, LbOpenClose {
         require(isOpen, "Building is closed");
         if (_isBadgeOwned[account][badgeId]) return;
         _unlockBadge(account, badgeId);
-    }
-
-    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
-        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
-        if (contractId == 0) {
-            _littlebitsNFT = LittlebitsNFT(newAddress);
-        }
     }
 
     function unlockBadge(uint badgeId, uint[] memory optionalData) public {

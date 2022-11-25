@@ -10,13 +10,13 @@ pragma solidity ^0.8.12;
 
 import "./LittlebitsNFT.sol";
 import "./LittlebucksTKN.sol";
-import "./LbSkills.sol";
-import "./LbCharacter.sol";
+import "./LbBadges.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
 // access requirements:
 // must be MINTER and TRANSFERER on LittlebucksTKN
+// must be BADGE_GIVER on LbBadges
 
 contract LbLottery is LbAccess, LbOpenClose {
     // access roles
@@ -24,6 +24,8 @@ contract LbLottery is LbAccess, LbOpenClose {
     uint public constant OTHERCONTRACTS_ROLE = 88;
     uint public constant SETTINGS_ROLE = 1;
     
+    //const
+    uint private constant BADGEID_LOTTERYWIN = 6777;
     // settings
     uint private _minLotteryHours = 1; //= 167;
     uint private _blocksPerHour = 20; //= 1200;
@@ -61,18 +63,22 @@ contract LbLottery is LbAccess, LbOpenClose {
     // mapping from account to total earnings
     mapping(address => uint) public accountTotalEarnings;
 
+    // mapping from account to total spent
+    mapping(address => uint) public accountTotalSpent;
+
     // mapping from drawId to startBlock
     mapping(uint => uint) public startBlock;
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
     LittlebucksTKN private _littlebucksTKN;
+    LbBadges private _lbbadges;
     
     event LotteryStart(uint indexed drawId, uint prize, bool isAccumulated, uint lastDrawnTicket, uint lastPrize, address lastWinnerAcc);
     event TicketBought(uint indexed ticket);
     event LotteryResult(uint indexed drawId, uint indexed luckyTicket, bool haveWinner, uint prize, address winnerAccount);
 
-    constructor(address littlebitsNFT, address littlebucksTKN) {
+    constructor(address littlebitsNFT, address littlebucksTKN, address lbbadges) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
@@ -81,6 +87,7 @@ contract LbLottery is LbAccess, LbOpenClose {
         // other contracts
         _littlebitsNFT = LittlebitsNFT(littlebitsNFT);
         _littlebucksTKN = LittlebucksTKN(littlebucksTKN);
+        _lbbadges = LbBadges(lbbadges);
     }
 
     function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
@@ -157,12 +164,13 @@ contract LbLottery is LbAccess, LbOpenClose {
         bytes32 drawRefBlockHash = blockhash(drawRefBlock);
         if (drawRefBlockHash != 0) {
             uint luckyTicket = uint(keccak256(abi.encodePacked(drawRefBlockHash))) % _totalTickets;
-            luckyTicket = 891;
+            luckyTicket = 891; ////////////////////// TEST
             drawnTicket[currentDrawId] = luckyTicket;
             bool hadWinner = isEnrolled[currentDrawId][luckyTicket];
             address ownerOfLuckyTicket = address(0);
             uint currentPrizePool = prizePool[currentDrawId];
             if (hadWinner) {
+                _lbbadges.BADGE_GIVER_giveBadge(luckyTicket, BADGEID_LOTTERYWIN);
                 ownerOfLuckyTicket = _littlebitsNFT.ownerOf(luckyTicket);
                 _littlebucksTKN.transfer(ownerOfLuckyTicket, currentPrizePool);
                 winnerAccount[currentDrawId] = ownerOfLuckyTicket;
@@ -188,6 +196,7 @@ contract LbLottery is LbAccess, LbOpenClose {
         enrolled[currentDrawId] += 1;
         isEnrolled[currentDrawId][tokenId] = true;
         prizePool[currentDrawId] += _ticketAddAmount;
+        accountTotalSpent[msg.sender] += _ticketBurnAmount + _ticketAddAmount;
         // event
         emit TicketBought(tokenId);
     }

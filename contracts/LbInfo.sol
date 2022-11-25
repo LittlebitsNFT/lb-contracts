@@ -17,10 +17,10 @@ contract LbInfo {
     LbFactory private _lbFactory;
     LbSkills private _lbSkills;
 
-    constructor(address _littlebitsNFTAddress, address _lbFactoryAddress, address _lbSkillsAddress){
-        _littlebitsNFT = LittlebitsNFT(_littlebitsNFTAddress);
-        _lbFactory = LbFactory(_lbFactoryAddress);
-        _lbSkills = LbSkills(_lbSkillsAddress);
+    constructor(address lbitsNFT, address lbFactory, address lbSkills){
+        _littlebitsNFT = LittlebitsNFT(lbitsNFT);
+        _lbFactory = LbFactory(lbFactory);
+        _lbSkills = LbSkills(lbSkills);
     }
 
     function getTokensByOwner(address owner) public view returns (uint[] memory) {

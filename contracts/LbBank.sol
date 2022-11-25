@@ -29,6 +29,9 @@ contract LbBank is LbAccess, LbOpenClose {
 
     // mapping from wallet to refBlock
     mapping(address => uint) public refBlock;
+
+    // mapping from wallet to alltime interest
+    mapping(address => uint) public alltimeInterest;
     
     // interest per week in bips 
     uint private _weekBips = 100; // 1%
@@ -83,6 +86,8 @@ contract LbBank is LbAccess, LbOpenClose {
         _littlebucksTKN.TRANSFERER_transfer(address(this), account, withdrawAmount);
         deposited[account] = 0;
         totalDeposited -= depositedAmount;
+        // register data
+        alltimeInterest[account] += interest;
         // emit
         emit Withdraw(account, withdrawAmount, depositedAmount);
     }

@@ -26,7 +26,7 @@ contract LbNames is LbAccess, LbOpenClose {
     uint public constant SETTINGS_ROLE = 2;
     
     // constants
-    uint private _changeNamePrice = 1000 * 100;
+    uint private _changeNamePrice = 500 * 100;
 
     // mapping from name to isTaken
     mapping(string => bool) public isNameTaken;
@@ -36,6 +36,9 @@ contract LbNames is LbAccess, LbOpenClose {
 
     // mapping from tokenId to name
     mapping(uint => string) public tokenName;
+
+    // mapping from account to setnameCounter
+    mapping(address => uint) public setnameCounter;
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
@@ -59,6 +62,8 @@ contract LbNames is LbAccess, LbOpenClose {
         require(msg.sender == _littlebitsNFT.ownerOf(tokenId), "Not the owner");
         _littlebucksTKN.TRANSFERER_transfer(msg.sender, address(this), _changeNamePrice);
         _littlebucksTKN.burn(_changeNamePrice);
+        // register data
+        setnameCounter[msg.sender] += 1;
         _changeName(tokenId, newName);
     }
 

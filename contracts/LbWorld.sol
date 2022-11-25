@@ -63,6 +63,9 @@ contract LbWorld is LbAccess, LbOpenClose {
     // mapping from account to maxFlairsAcquired on a single token
     mapping(address => uint) private accMaxFlairsSingleToken;
 
+    // mapping from (account, flairId) to wasFlairUnlocked
+    mapping(address => mapping(uint => bool)) public wasFlairUnlocked;
+
     constructor(address littlebitsNFTAddr, address littlebucksTKNAddr) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // tmp testing, default: 200_000
@@ -166,12 +169,14 @@ contract LbWorld is LbAccess, LbOpenClose {
         if (!isFlairOwned[tokenId][flairId]) {
             isFlairOwned[tokenId][flairId] = true;
             flairsAcquired[tokenId].push(flairId);
+            address owner = _littlebitsNFT.ownerOf(tokenId);
             // register max flairs acquired by account on a single token
             uint tokenFlairsAcquiredLength = flairsAcquired[tokenId].length;
-            address owner = _littlebitsNFT.ownerOf(tokenId);
             if (accMaxFlairsSingleToken[owner] < tokenFlairsAcquiredLength) {
                 accMaxFlairsSingleToken[owner] = tokenFlairsAcquiredLength;
             }
+            // register flair acquired by account
+            wasFlairUnlocked[owner][flairId] = true;
             // emit
             emit FlairAcquired(tokenId, flairId);
         }

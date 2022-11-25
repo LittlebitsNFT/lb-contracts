@@ -27,8 +27,8 @@ contract LbBadges is LbAccess, LbOpenClose {
     uint public constant ADMIN_ROLE = 99;
     uint public constant OTHERCONTRACTS_ROLE = 88;
     uint public constant BADGE_REGISTERER_ROLE = 1; // set / modify badge validators (callbacks)
-    uint public constant BADGE_REMOVER_ROLE = 2; // removes badges
-    uint public constant BADGE_GIVER_ROLE = 3; // gives badges
+    uint public constant BADGE_REMOVER_ROLE = 2; // remove badges
+    uint public constant BADGE_GIVER_ROLE = 3; // give badges
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
@@ -44,7 +44,7 @@ contract LbBadges is LbAccess, LbOpenClose {
     mapping(uint => BadgeRewarder) private _badgeRewarderCallback;
 
     // (account, badgeId) to number_of_times_unlocked
-    mapping(address => mapping(uint => uint)) public accountUnlockCounter;
+    mapping(address => mapping(uint => uint)) public unlockCounter;
 
     event BadgeRegistered(uint indexed badgeId, address indexed validatorAddress);
     event BadgeUnlocked(uint indexed tokenId, uint indexed badgeId);
@@ -83,7 +83,7 @@ contract LbBadges is LbAccess, LbOpenClose {
         }
         // remove from account registry
         address owner = _littlebitsNFT.ownerOf(tokenId);
-        accountUnlockCounter[owner][badgeId] -= 1;
+        unlockCounter[owner][badgeId] -= 1;
     }
 
     // gives badge without checking for requirements (will still give reward)
@@ -178,7 +178,7 @@ contract LbBadges is LbAccess, LbOpenClose {
         if(address(_badgeRewarderCallback[badgeId]) != address(0)) {
             _badgeRewarderCallback[badgeId].rewardBadgeUnlock(tokenId, badgeId, lbOwner);
         }
-        accountUnlockCounter[lbOwner][badgeId] += 1;
+        unlockCounter[lbOwner][badgeId] += 1;
         emit BadgeUnlocked(tokenId, badgeId);
     }    
 
