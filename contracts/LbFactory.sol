@@ -78,7 +78,7 @@ contract LbFactory is LbAccess, LbOpenClose {
         _lbSkills = LbSkills(lbSkills);
     }
 
-    // MANAGER_fireWorker
+    // MANAGER_fireWorker // todo: debug (create private _stopWork without owner checks)
     function MANAGER_fire(uint tokenId) public {
         require(hasRole[msg.sender][MANAGER_ROLE], 'MANAGER_ROLE access required');
         stopWork(tokenId);

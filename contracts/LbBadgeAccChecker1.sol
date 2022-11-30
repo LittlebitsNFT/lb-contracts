@@ -30,6 +30,9 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
 
     uint private constant WORKING_SKILL_ID = 1;
     uint private constant BLOCKS_PER_HOUR = 60 * 60 / 3;
+    uint private constant FLAIR_FIREWORKS1 = 26;
+    uint private constant FLAIR_FIREWORKS2 = 27;
+    uint private constant FLAIR_FIREWORKS3 = 28;
 
     constructor(address littlebitsNFT, address lbWorld, address lbFactory, address lbSkills, address lbBadges, address lbBank, address lbLottery, address lbNames) {
         _littlebitsNFT = LittlebitsNFT(littlebitsNFT);
@@ -63,7 +66,7 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
         }
         // casino balcony placement
         if (badgeId == 1005) {
-            require(optData.length == 1, 'badgeId 1004 optData not found');
+            require(optData.length == 1, 'badgeId 1005 optData not found');
             uint tokenId = optData[0];
             if(account != _littlebitsNFT.ownerOf(tokenId)) return false;
             WorldPlacedInfo memory worldPlacedInfo = _lbWorld.getLastPlacedInfo(tokenId);
@@ -79,22 +82,8 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
             uint mechaFlairId = 57;
             return _lbWorld.wasFlairUnlocked(account, mechaFlairId);
         }
-        // placed near another token with same flair
+        // placed near another token with flair
         if (badgeId == 1007) {
-            require(optData.length == 2, 'badgeId 1006 optData not found');
-            uint myTokenId = optData[0];
-            uint otherTokenId = optData[1];
-            if(account != _littlebitsNFT.ownerOf(myTokenId)) return false;
-            WorldPlacedInfo memory myWorldPlacedInfo = _lbWorld.getLastPlacedInfo(myTokenId);
-            WorldPlacedInfo memory otherWorldPlacedInfo = _lbWorld.getLastPlacedInfo(otherTokenId);
-            uint minimumBlock = block.number - _lbWorld.maxPlacementBlocksConsidered();
-            if(myWorldPlacedInfo.block < minimumBlock) return false;
-            if(otherWorldPlacedInfo.block < minimumBlock) return false;
-            if(myWorldPlacedInfo.flairs[0] != otherWorldPlacedInfo.flairs[0]) return false;
-            return true;
-        }
-        // placed token with fireworks near someone with fireworks
-        if (badgeId == 1008) {
             require(optData.length == 2, 'badgeId 1007 optData not found');
             uint myTokenId = optData[0];
             uint otherTokenId = optData[1];
@@ -104,21 +93,36 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
             WorldPlacedInfo memory myWorldPlacedInfo = _lbWorld.getLastPlacedInfo(myTokenId);
             WorldPlacedInfo memory otherWorldPlacedInfo = _lbWorld.getLastPlacedInfo(otherTokenId);
             uint minimumBlock = block.number - _lbWorld.maxPlacementBlocksConsidered();
-            if(myWorldPlacedInfo.block < minimumBlock) return false;
-            if(otherWorldPlacedInfo.block < minimumBlock) return false;
-            // both using fireworks
-            uint fireworksFlairId1 = 26;
-            uint fireworksFlairId2 = 27;
-            uint fireworksFlairId3 = 28;
-            if(myWorldPlacedInfo.flairs[0] != fireworksFlairId1 || myWorldPlacedInfo.flairs[0] != fireworksFlairId2 || myWorldPlacedInfo.flairs[0] != fireworksFlairId3) return false;
-            if(otherWorldPlacedInfo.flairs[0] != fireworksFlairId1 || otherWorldPlacedInfo.flairs[0] != fireworksFlairId2 || otherWorldPlacedInfo.flairs[0] != fireworksFlairId3) return false;
+            if(myWorldPlacedInfo.block < minimumBlock || otherWorldPlacedInfo.block < minimumBlock) return false;
+            // using flairs
+            if(myWorldPlacedInfo.flairs.length < 1 || otherWorldPlacedInfo.flairs.length < 1) return false;
+            // same flair
+            if(myWorldPlacedInfo.flairs[0] != otherWorldPlacedInfo.flairs[0]) return false;
             // in range
-            uint MAX_RANGE = 50;
-            int x1 = myWorldPlacedInfo.coords[0];
-            int x2 = otherWorldPlacedInfo.coords[0];
-            int y1 = myWorldPlacedInfo.coords[1];
-            int y2 = otherWorldPlacedInfo.coords[1];
-            if(sqrt(uint(((x2 - x1)**2) + ((y2 - y1)**2))) > MAX_RANGE) return false;
+            bool inRange = testIfInRange(myWorldPlacedInfo.coords, otherWorldPlacedInfo.coords, 50);
+            if (!inRange) return false;
+            return true;
+        }
+        // placed token with fireworks near someone with fireworks
+        if (badgeId == 1008) {
+            require(optData.length == 2, 'badgeId 1008 optData not found');
+            uint myTokenId = optData[0];
+            uint otherTokenId = optData[1];
+            // is owner
+            if(account != _littlebitsNFT.ownerOf(myTokenId)) return false;
+            // both showing
+            WorldPlacedInfo memory myWorldPlacedInfo = _lbWorld.getLastPlacedInfo(myTokenId);
+            WorldPlacedInfo memory otherWorldPlacedInfo = _lbWorld.getLastPlacedInfo(otherTokenId);
+            uint minimumBlock = block.number - _lbWorld.maxPlacementBlocksConsidered();
+            if(myWorldPlacedInfo.block < minimumBlock || otherWorldPlacedInfo.block < minimumBlock) return false;
+            // using flairs
+            if(myWorldPlacedInfo.flairs.length < 1 || otherWorldPlacedInfo.flairs.length < 1) return false;
+            // using fireworks
+            if(myWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS1 || myWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS2 || myWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS3) return false;
+            if(otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS1 || otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS2 || otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS3) return false;
+            // in range
+            bool inRange = testIfInRange(myWorldPlacedInfo.coords, otherWorldPlacedInfo.coords, 50);
+            if (!inRange) return false;
             return true;
         }
         //// factory
@@ -204,16 +208,23 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
         revert('unexpected badgeId');
     }
 
-    function sqrt(uint y) internal pure returns (uint z) {
-        if (y > 3) {
-            z = y;
-            uint x = y / 2 + 1;
-            while (x < z) {
-                z = x;
-                x = (y / x + x) / 2;
-            }
-        } else if (y != 0) {
-            z = 1;
+    function testIfInRange(int[2] memory coords1, int[2] memory coords2, int range) internal pure returns (bool inRange) {
+        if ((coords1[0] - coords2[0]) > range ||  (coords1[0] - coords2[0]) < -range ||  (coords1[1] - coords2[1]) > range ||  (coords1[1] - coords2[1]) < -range) {
+            return false;
         }
-    }
+        return true;
+    } 
+
+    // function sqrt(uint y) internal pure returns (uint z) {
+    //     if (y > 3) {
+    //         z = y;
+    //         uint x = y / 2 + 1;
+    //         while (x < z) {
+    //             z = x;
+    //             x = (y / x + x) / 2;
+    //         }
+    //     } else if (y != 0) {
+    //         z = 1;
+    //     }
+    // }
 }

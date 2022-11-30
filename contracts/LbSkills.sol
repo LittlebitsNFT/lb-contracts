@@ -9,8 +9,12 @@ pragma solidity ^0.8.12;
  */
 
 import "./LittlebitsNFT.sol";
+import "./LbBadges.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
+
+// access requirements:
+// must be BADGE_GIVER on LbBadges
 
 struct SkillTracker {
     uint currentBracket; // 0(0-5) to 20(100+)
@@ -20,6 +24,7 @@ struct SkillTracker {
 contract LbSkills is LbAccess, LbOpenClose {
     // access roles
     uint public constant ADMIN_ROLE = 99;
+    uint public constant OTHERCONTRACTS_ROLE = 88;
     uint public constant SKILLCHANGER_ROLE = 1;
     uint public constant BRACKETSSETTER_ROLE = 2;
 
@@ -36,10 +41,11 @@ contract LbSkills is LbAccess, LbOpenClose {
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
+    LbBadges private _lbBadges;
 
     event SkillUp(uint indexed tokenId, uint indexed skillId, uint xpChange, uint xpTotal, uint skillTotal);
 
-    constructor(address littlebitsNFTAddr) {
+    constructor(address littlebitsNFTAddr, address lbBadges) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // todo: testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
@@ -47,15 +53,14 @@ contract LbSkills is LbAccess, LbOpenClose {
 
         // other contracts refs
         _littlebitsNFT = LittlebitsNFT(littlebitsNFTAddr);
+        _lbBadges = LbBadges(lbBadges);
     }
 
-    function BRACKETSSETTER_setBrackets(uint skillId, uint[] memory bracketIds, uint[] memory bracketsXp) public {
+    function BRACKETSSETTER_setBrackets(uint skillId, uint[] memory bracketsXp) public {
         require(hasRole[msg.sender][BRACKETSSETTER_ROLE], 'BRACKETSSETTER_ROLE access required');
         require(isOpen, "Building is closed");
-        uint bracketsLength = bracketIds.length;
-        require(bracketsLength == bracketsXp.length);
-        for (uint i = 0; i < bracketsLength; i++) {
-            uint bracketId = bracketIds[i];
+        for (uint i = 0; i < bracketsXp.length; i++) {
+            uint bracketId = i;
             uint bracketXp = bracketsXp[i];
             _bracketsXp[skillId][bracketId] = bracketXp;
         }
@@ -88,7 +93,20 @@ contract LbSkills is LbAccess, LbOpenClose {
             if (accMaxSkill[owner][skillId] < totalSkill) {
                 accMaxSkill[owner][skillId] = totalSkill;
             }
+            // register badge on 10000 skill
+            uint badgeId = 3000 + skillId;
+            if (totalSkill == 10000) _lbBadges.BADGE_GIVER_giveBadge(tokenId, badgeId);
             emit SkillUp(tokenId, skillId, xpChange, newTotalXp, totalSkill);
+        }
+    }
+
+    function OTHERCONTRACTS_setContract(uint contractId, address newAddress) public {
+        require(hasRole[msg.sender][OTHERCONTRACTS_ROLE], 'OTHERCONTRACTS access required');
+        if (contractId == 0) {
+            _littlebitsNFT = LittlebitsNFT(newAddress);
+        }
+        if (contractId == 1) {
+            _lbBadges = LbBadges(newAddress);
         }
     }
 
@@ -120,29 +138,7 @@ contract LbSkills is LbAccess, LbOpenClose {
         return _skills[tokenId][skillId];
     }
 
-    // skill ticks cummulative        0-10     10-20    20-30    30-40    40-50      50-60      60-70      70-80      80-90      90-100
-    // uint[10] private skillTicks = [120_000, 240_000, 480_000, 720_000, 1_200_000, 1_920_000, 2_880_000, 4_320_000, 7_200_000, 13_200_000];
-    //          +50                       
-    // 50       +50
-    // 100      +50  
-    // 150      +50
-    // 200      +100
-    // 300      +100
-    // 400      +100
-    // 500      +100
-    // 600      +200
-    // 800      +200
-    // 1000     +300
-    // 1300     +300 
-    // 1600     +400
-    // 2000     +400 
-    // 2400     +600
-    // 3000     +600
-    // 3600     +1200
-    // 4800     +1200 
-    // 6000     +2500
-    // 8500     +2500
-    // 11000    
+    // skill ticks cummulative
     //                            0-5  10   15   20   25   30   35   40   45   50    55    60    65    70    75    80    85    90    95    100
     // uint[20] workingSkillReq = [50, 100, 150, 200, 300, 400, 500, 600, 800, 1000, 1300, 1600, 2000, 2400, 3000, 3600, 4800, 6000, 8500, 11000];
 }

@@ -11,6 +11,7 @@ pragma solidity ^0.8.12;
 import "./LittlebitsNFT.sol";
 import "./LbCharacter.sol";
 import "./LittlebucksTKN.sol";
+import "./LbBadges.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
@@ -23,6 +24,7 @@ struct WorldPlacedInfo {
 
 // access requirements:
 // must be TRANSFERER on LittlebucksTKN
+// must be BADGE_GIVER on LbBadges
 
 contract LbWorld is LbAccess, LbOpenClose {
     // access roles
@@ -37,10 +39,14 @@ contract LbWorld is LbAccess, LbOpenClose {
     
     // maximum blocks considered to be registered on pastTotalBlocksPlaced each time
     uint public maxPlacementBlocksConsidered = 24 * 60 * 60 / 3; // default: 24h for 3s block time
+    
+    uint public badge1ReqBlocks = 100 * 60 * 60 / 3; 
+    uint public badge2ReqBlocks = 1000 * 60 * 60 / 3;
 
     // other contracts
     LittlebitsNFT private _littlebitsNFT;
     LittlebucksTKN private _littlebucksTKN;
+    LbBadges private _lbBadges;
 
     // events
     event TokenPlaced(uint indexed tokenId, int[2] coords, bool flipped, uint[] flairs);
@@ -66,7 +72,7 @@ contract LbWorld is LbAccess, LbOpenClose {
     // mapping from (account, flairId) to wasFlairUnlocked
     mapping(address => mapping(uint => bool)) public wasFlairUnlocked;
 
-    constructor(address littlebitsNFTAddr, address littlebucksTKNAddr) {
+    constructor(address littlebitsNFTAddr, address littlebucksTKNAddr, address lbBadges) {
         // access control config
         ACCESS_WAIT_BLOCKS = 0; // tmp testing, default: 200_000
         ACCESS_ADMIN_ROLEID = ADMIN_ROLE;
@@ -75,6 +81,7 @@ contract LbWorld is LbAccess, LbOpenClose {
         // other contracts refs
         _littlebitsNFT = LittlebitsNFT(littlebitsNFTAddr);
         _littlebucksTKN = LittlebucksTKN(littlebucksTKNAddr);
+        _lbBadges = LbBadges(lbBadges);
     }
 
     // to be tested
@@ -208,12 +215,23 @@ contract LbWorld is LbAccess, LbOpenClose {
         if (contractId == 1) {
             _littlebucksTKN = LittlebucksTKN(newAddress);
         }
+        if (contractId == 2) {
+            _lbBadges = LbBadges(newAddress);
+        }
     }
 
-    // update total blocks placed and sets a new placed position
+    // update total blocks placed, sets a new placed position and gives badges
     function _updatedPlacedPosition(uint tokenId, int[2] memory coords, bool flipped, uint[] memory flairs) private {
         // update past total blocks placed
-        pastTotalBlocksPlaced[tokenId] = getTotalBlocksPlaced(tokenId);
+        uint totalBlocksPlaced = getTotalBlocksPlaced(tokenId);
+        pastTotalBlocksPlaced[tokenId] = totalBlocksPlaced;
+        // gives badges
+        if (totalBlocksPlaced >= badge1ReqBlocks) {
+            _lbBadges.BADGE_GIVER_giveBadge(tokenId, 1010);
+        }
+        if (totalBlocksPlaced >= badge2ReqBlocks) {
+            _lbBadges.BADGE_GIVER_giveBadge(tokenId, 1020);
+        }
         // sets a new placed position
         lastPlaced[tokenId] = WorldPlacedInfo(block.number, coords, flipped, flairs);
     }
