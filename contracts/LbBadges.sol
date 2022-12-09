@@ -12,6 +12,9 @@ import "./LittlebitsNFT.sol";
 import "./LbAccess.sol";
 import "./LbOpenClose.sol";
 
+// access requirements:
+// must be BADGE_REWARDER on every LbBadgeRewarder
+
 //  Register/change BadgeId => BadgeValidator as needed
 //  Different badges can have the same validator (using badgeId to decide)
 interface BadgeValidator {
@@ -47,6 +50,7 @@ contract LbBadges is LbAccess, LbOpenClose {
     mapping(address => mapping(uint => uint)) public unlockCounter;
 
     event BadgeRegistered(uint indexed badgeId, address indexed validatorAddress);
+    event RewardRegistered(uint indexed badgeId, address indexed rewarderAddress);
     event BadgeUnlocked(uint indexed tokenId, uint indexed badgeId);
 
     constructor(address littlebitsNFT) {
@@ -64,6 +68,13 @@ contract LbBadges is LbAccess, LbOpenClose {
         require(isOpen, "Building is closed");
         _badgeCheckerCallback[badgeId] = BadgeValidator(validatorAddress);
         emit BadgeRegistered(badgeId, validatorAddress);
+    }
+
+    function BADGE_REGISTERER_registerRewarder(uint badgeId, address rewarderAddress) public {
+        require(hasRole[msg.sender][BADGE_REGISTERER_ROLE], 'BADGE_REGISTERER access required');
+        require(isOpen, "Building is closed");
+        _badgeRewarderCallback[badgeId] = BadgeRewarder(rewarderAddress);
+        emit RewardRegistered(badgeId, rewarderAddress);
     }
 
     // will do a full search if startInd is zero. You can specify where it is on the owned list
@@ -169,8 +180,6 @@ contract LbBadges is LbAccess, LbOpenClose {
         }
         return ownedArray;
     }
-
-
 
     function _unlockBadge(uint tokenId, uint badgeId, address lbOwner) private {
         _isBadgeOwned[tokenId][badgeId] = true;

@@ -30,8 +30,6 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
 
     uint private constant WORKING_SKILL_ID = 1;
     uint private constant BLOCKS_PER_HOUR = 60 * 60 / 3;
-    uint private constant FLAIR_FIREWORKS1 = 26;
-    uint private constant FLAIR_FIREWORKS2 = 27;
     uint private constant FLAIR_FIREWORKS3 = 28;
 
     constructor(address littlebitsNFT, address lbWorld, address lbFactory, address lbSkills, address lbBadges, address lbBank, address lbLottery, address lbNames) {
@@ -58,11 +56,11 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
         } 
         if (badgeId == 1003) {
             uint flairsAcquired = _lbWorld.getAccMaxFlairsSingleToken(account);
-            return flairsAcquired >= 20;
+            return flairsAcquired >= 25;
         }
         if (badgeId == 1004) {
             uint flairsAcquired = _lbWorld.getAccMaxFlairsSingleToken(account);
-            return flairsAcquired >= 40;
+            return flairsAcquired >= 50;
         }
         // casino balcony placement
         if (badgeId == 1005) {
@@ -103,7 +101,7 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
             if (!inRange) return false;
             return true;
         }
-        // placed token with fireworks near someone with fireworks
+        // placed token with fireworks near someone with fireworks3
         if (badgeId == 1008) {
             require(optData.length == 2, 'badgeId 1008 optData not found');
             uint myTokenId = optData[0];
@@ -115,13 +113,12 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
             WorldPlacedInfo memory otherWorldPlacedInfo = _lbWorld.getLastPlacedInfo(otherTokenId);
             uint minimumBlock = block.number - _lbWorld.maxPlacementBlocksConsidered();
             if(myWorldPlacedInfo.block < minimumBlock || otherWorldPlacedInfo.block < minimumBlock) return false;
-            // using flairs
-            if(myWorldPlacedInfo.flairs.length < 1 || otherWorldPlacedInfo.flairs.length < 1) return false;
-            // using fireworks
-            if(myWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS1 || myWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS2 || myWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS3) return false;
-            if(otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS1 || otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS2 || otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS3) return false;
+            // other using flair
+            if(otherWorldPlacedInfo.flairs.length < 1) return false;
+            // using fireworks3
+            if(otherWorldPlacedInfo.flairs[0] != FLAIR_FIREWORKS3) return false;
             // in range
-            bool inRange = testIfInRange(myWorldPlacedInfo.coords, otherWorldPlacedInfo.coords, 50);
+            bool inRange = testIfInRange(myWorldPlacedInfo.coords, otherWorldPlacedInfo.coords, 100);
             if (!inRange) return false;
             return true;
         }
@@ -151,21 +148,25 @@ contract LbBadgeAccChecker1 is BadgeAccValidator {
         // working skill
         if (badgeId == 3001) {
             uint workingSkill = _lbSkills.accMaxSkill(account, WORKING_SKILL_ID);
-            return workingSkill >= 30 * 100;
+            return workingSkill >= 10 * 100;
         }
         if (badgeId == 3002) {
             uint workingSkill = _lbSkills.accMaxSkill(account, WORKING_SKILL_ID);
-            return workingSkill >= 50 * 100;
+            return workingSkill >= 30 * 100;
         }
         if (badgeId == 3003) {
             uint workingSkill = _lbSkills.accMaxSkill(account, WORKING_SKILL_ID);
-            return workingSkill >= 70 * 100;
+            return workingSkill >= 50 * 100;
         }
         if (badgeId == 3004) {
             uint workingSkill = _lbSkills.accMaxSkill(account, WORKING_SKILL_ID);
-            return workingSkill >= 90 * 100;
+            return workingSkill >= 70 * 100;
         }
         if (badgeId == 3005) {
+            uint workingSkill = _lbSkills.accMaxSkill(account, WORKING_SKILL_ID);
+            return workingSkill >= 90 * 100;
+        }
+        if (badgeId == 3006) {
             uint workingSkill = _lbSkills.accMaxSkill(account, WORKING_SKILL_ID);
             return workingSkill >= 100 * 100;
         }

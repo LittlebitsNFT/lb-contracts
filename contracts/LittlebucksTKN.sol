@@ -27,19 +27,19 @@ contract LittlebucksTKN is ERC20, ERC20Burnable, Pausable, LbAccess {
     mapping(address => uint) public mintedBy;
 
     // old coins claim
-    address public constant OLD_LBUCKS_ADDR = address(0x84Df4F7ABC7E10c88970ecD11F5C402879170f3e);
-    LittlebucksTKN private oldLbucksTkn = LittlebucksTKN(OLD_LBUCKS_ADDR);
-    mapping(address => bool) public isAccountClaimed;
-    uint public totalClaimed;
+    // address public constant OLD_LBUCKS_ADDR = address(0x84Df4F7ABC7E10c88970ecD11F5C402879170f3e);
+    // LittlebucksTKN private oldLbucksTkn = LittlebucksTKN(OLD_LBUCKS_ADDR);
+    // mapping(address => bool) public isAccountClaimed;
+    // uint public totalClaimed;
 
-    function claimOldCoins() public {
-        require(!isAccountClaimed[msg.sender]);
-        isAccountClaimed[msg.sender] = true;
-        uint oldBalance = oldLbucksTkn.balanceOf(msg.sender);
-        require(oldBalance != 0, "No balance to claim");
-        _mint(msg.sender, oldBalance);
-        totalClaimed += oldBalance;
-    }
+    // function claimOldCoins() public {
+    //     require(!isAccountClaimed[msg.sender]);
+    //     isAccountClaimed[msg.sender] = true;
+    //     uint oldBalance = oldLbucksTkn.balanceOf(msg.sender);
+    //     require(oldBalance != 0, "No balance to claim");
+    //     _mint(msg.sender, oldBalance);
+    //     totalClaimed += oldBalance;
+    // }
 
     constructor() ERC20("Testbucks", "TBUCKS") {
         // access control config

@@ -27,8 +27,8 @@ contract LbLottery is LbAccess, LbOpenClose {
     //const
     uint private constant BADGEID_LOTTERYWIN = 6777;
     // settings
-    uint private _minLotteryHours = 1; //= 167;
-    uint private _blocksPerHour = 20; //= 1200;
+    uint private _minLotteryHours = 167; //= 167; // TEST
+    uint private _blocksPerHour = 1200; //= 1200; // TEST
     uint private _totalTickets = 10000;
     uint private _ticketBurnAmount = 10 * 100;
     uint private _ticketAddAmount = 40 * 100;
@@ -164,7 +164,7 @@ contract LbLottery is LbAccess, LbOpenClose {
         bytes32 drawRefBlockHash = blockhash(drawRefBlock);
         if (drawRefBlockHash != 0) {
             uint luckyTicket = uint(keccak256(abi.encodePacked(drawRefBlockHash))) % _totalTickets;
-            luckyTicket = 891; ////////////////////// TEST
+            // luckyTicket = 891; ////////////////////// TEST
             drawnTicket[currentDrawId] = luckyTicket;
             bool hadWinner = isEnrolled[currentDrawId][luckyTicket];
             address ownerOfLuckyTicket = address(0);
