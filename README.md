@@ -1,1 +1,1 @@
-Official Littlebits World contracts repository.
+Official Littlebits World contracts.
