@@ -1,1 +1,1 @@
-Official LittlebitsNFT contracts repository.
+Official Littlebits World contracts repository.
